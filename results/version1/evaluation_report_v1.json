@@ -1,3 +1,5 @@
+//checkpoint = dti_model.pt
+
 {
   "v1": {
     "cold_drug": {
