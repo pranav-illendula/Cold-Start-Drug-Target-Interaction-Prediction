@@ -10,7 +10,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data (large, download/regenerate instead)
-data/
+data/*
+!data/README.md
 *.csv
 *.pkl
 
