@@ -1,4 +1,7 @@
-\"""
+git add -A
+git status --short
+git diff --cached --check
+git diff --cached --stat\"""
 DTI-GNN V3 training script — optimized for an unattended overnight run.
 
 Key fixes vs. the notebook version:
