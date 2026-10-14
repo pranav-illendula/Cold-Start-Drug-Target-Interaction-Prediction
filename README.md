@@ -166,20 +166,20 @@ See [PROJECT_REPORT.md](PROJECT_REPORT.md) for the exact procedure and counts at
 ### Train
 
 ```bash
-python train_v3.py
+python train_v4.py
 ```
 
-Stable checkpoints are saved as `checkpoints/dti_model_v3_stable_epoch*.pt`. Because ESM-2 runs live during training, expect longer epochs and higher GPU memory use than with cached embeddings; you may need to reduce the batch size.
+The recommended experiment uses frozen ESM-2 150M with cached CLS-plus-mean target embeddings, a deterministic target-held-out validation split, training-only label standardization, and early stopping on validation MAE. It requires CUDA and downloads the ESM-2 150M weights on the first run. The embedding cache and split are created under `data/`; checkpoints are saved as `checkpoints/dti_model_v4_best.pt` and `checkpoints/dti_model_v4_last.pt`. Epochs continue until validation MAE has not improved by 0.001 pIC50 for eight consecutive epochs. The final cold-start test splits are not used for checkpoint selection.
+
+The 15% validation holdout is by target ID, not sequence cluster, so related protein sequences may occur on both sides. The fixed split is recorded in `data/v4_target_validation_split.json`; the ESM cache is `data/esm2_t30_150M_cls_mean_embeddings.pt`. Both are local generated artifacts and can be regenerated on a different machine.
 
 ### Evaluate
 
 ```bash
-python evaluate_v3.py
+python evaluate_v4.py
 ```
 
-Evaluates the checkpoint on `cold_drug`, `cold_target`, and `cold_pair` and writes a report. The script checks architecture compatibility and stops if predictions are non-finite or exceed an absolute magnitude of 20.
-
-> The evaluation script currently reads split data from a local path (`C:\DTI_GNN\evaluation`). Change it to your own data location before running.
+Metrics and predictions are written to `evaluation/v4_results/`. The earlier v3 scripts remain available for reproducing the previous results.
 
 ### In-sample diagnostic (optional)
 
@@ -193,7 +193,7 @@ Evaluates a stratified sample of 256 **training** examples (seed 42) and writes 
 
 ## Limitations
 
-- No separate validation set; the final checkpoint was not selected on held-out validation data
+- The v4 target holdout is by ID, not sequence cluster
 - Target split by name rather than sequence identity
 - Censored IC50 values (`>`, `<`) were dropped rather than modeled
 - IC50 varies across assays; median aggregation reduces but does not remove this noise
@@ -203,9 +203,8 @@ Evaluates a stratified sample of 256 **training** examples (seed 42) and writes 
 
 ## Future Work
 
-- Target-held-out validation split and per-bin reporting
 - Sequence-identity clustering for the target split
-- Ablations separating live ESM, LayerNorm, and range-weighted loss
+- Ablations separating frozen ESM size/pooling, fusion, and regression loss
 - Like-for-like comparison of v1, v2, and v3 on identical evaluation rows
 - More quality-controlled high-pIC50 data
 - Censored-regression loss, larger protein encoders, and uncertainty estimates
