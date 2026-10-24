@@ -2,7 +2,7 @@
 
 Predicting drug–target binding affinity (**pIC50**) on **BindingDB** in the **cold-start** setting, where the drugs, the targets, or both were never seen during training.
 
-A two-tower graph neural network encodes the drug with a **GCN** and the protein with a **partially fine-tuned ESM-2** language model, trained with a **range-weighted loss** aimed at rare, extreme affinities.
+A two-tower graph neural network encodes the drug with a **bond-aware residual GINE** and the protein with frozen **ESM-2 150M** embeddings. A gated interaction module combines both representations to predict pIC50.
 
 > 📄 Full methodology, results, and discussion: **[PROJECT_REPORT.md](PROJECT_REPORT.md)**
 
@@ -12,8 +12,10 @@ A two-tower graph neural network encodes the drug with a **GCN** and the protein
 
 - **Dataset:** 998,586 unique drug–target pairs from BindingDB (human targets, IC50 → pIC50, median over repeated measurements)
 - **Leakage-checked cold-start splits:** Murcko-scaffold split for drugs + grouped split for targets, giving four evaluation sets: `train`, `cold_drug`, `cold_target`, `cold_pair`
-- **Model:** two-tower architecture — 3-layer GCN (drug) + ESM-2 35M (target) → concatenation → MLP → pIC50
-- **Training objective:** range-weighted squared error (inverse-square-root label-bin weights)
+- **Model:** four residual GINE blocks with bond features and mean/max/add pooling; frozen ESM-2 150M; gated drug–target fusion
+- **Training objective:** capped inverse-square-root pIC50-bin weighted Smooth L1 with training-only label standardization
+- **Training schedule:** AdamW with 10% linear warmup followed by cosine decay
+- **Evaluation:** cold-start metrics include MAE, RMSE, Pearson correlation, concordance index, and pIC50-bin breakdowns
 - **Documented debugging:** a BatchNorm failure that caused exploding predictions, diagnosed and fixed with LayerNorm
 - **Honest evaluation:** results reported separately per cold-start split, with error broken down by pIC50 bin
 
@@ -41,23 +43,30 @@ Cold-start evaluation asks whether the model generalizes to entities it has not 
 
 ```mermaid
 flowchart LR
-  A["Drug (molecular graph, 18 atom features)"] --> B["3x GCNConv (128 channels)"]
-  B --> C["Global mean pool (128-d)"]
-  D["target_idx → protein sequence"] --> E["ESM-2 35M, layer 12, mean-pooled (480-d)"]
-  E --> F["Projection 480→256→128 (LayerNorm, ReLU, Dropout)"]
-  C --> G["Concatenate (256-d)"]
+  A["Drug graph (18 atom + 14 bond features)"] --> B["4x residual GINE (256 channels)"]
+  B --> C["Mean + max + add pooling"]
+  C --> D["Drug projection (256-d)"]
+  E["target_idx → cached ESM-2 150M (CLS + mean, 1280-d)"] --> F["Target projection (256-d)"]
+  D --> G["Gated interaction fusion (1280-d)"]
   F --> G
-  G --> H["MLP 256→128→64→1"]
+  G --> H["Regression head: 512→256→1"]
   H --> I["Predicted pIC50"]
 ```
 
 | Component | Details |
 |---|---|
-| Drug encoder | 3 × `GCNConv`, global mean pooling → 128-d |
-| Target encoder | ESM-2 `esm2_t12_35M`, residue representations mean-pooled → 480-d, partially fine-tuned in v3 |
-| Target projection | 480 → 256 → 128, LayerNorm + ReLU + dropout |
-| Repeated targets | Each unique target in a batch is encoded once, then mapped back to its examples |
-| Loss | Range-weighted squared error |
+| Drug encoder | Atom projection → 4 residual `GINEConv` blocks with directed 14-d bond features |
+| Drug pooling | Concatenated global mean, max, and add pooling → 256-d |
+| Target encoder | Frozen ESM-2 `esm2_t30_150M`, cached CLS-plus-residue-mean embedding (1280-d) |
+| Fusion | Element-wise compatibility, absolute discrepancy, and pair-specific gated mixture |
+| Loss | Smooth L1 weighted by inverse square root of training-set pIC50-bin frequency; normalized weights have mean 1 and are capped at 5× between bins |
+| Optimizer | AdamW (`5e-5`) with 10% linear warmup and cosine decay |
+
+The v4 graph tensors must include one 14-d `edge_attr` row per directed edge. The feature layout is five bond-type indicators (single, double, triple, aromatic, dative), conjugation, ring membership, six stereo indicators (none, any, Z, E, cis, trans), and a donor-to-acceptor direction flag for dative bonds. Existing graph tensors must be rebuilt before training or evaluation with this architecture.
+
+Loss bins use pIC50 boundaries 4.5, 6, 7.5, 9, 10.5, and 12. Weights are estimated from only the training subset, use capped inverse-square-root bin frequency (maximum 5× before normalization), and are normalized to mean 1. This weights errors on rare high-potency labels more heavily; validation and test metrics remain unweighted.
+
+This revised v4 architecture uses checkpoint revision 7 and writes separate `dti_model_v4_gine_*` checkpoints, leaving earlier v4 checkpoints untouched. Rebuild the training and cold-start graph tensors with the required bond features before starting a new run.
 
 ### Model versions
 
@@ -128,16 +137,16 @@ Metrics are on the pIC50 scale, evaluated separately on each cold-start split.
 .
 ├── README.md
 ├── PROJECT_REPORT.md
-├── model_v3.py                       # shared model definition (stable architecture)
-├── train_v3.py                       # training loop, stable checkpoints
-├── evaluate_v3.py                    # cold-start evaluation, report/CSV/NPZ output
-├── evaluate_train_sample_v3.py       # stratified in-sample diagnostic
-├── checkpoints/
-│   └── dti_model_v3_stable_epoch15.pt
+├── model_v4.py                       # bond-aware GINE and gated fusion
+├── scripts/
+│   ├── prepare_splits.py             # leakage-checked cold-start CSV splits
+│   ├── build_graphs_v4.py            # atom/bond graph tensor generation
+│   ├── train_v4.py                   # weighted-loss training
+│   └── evaluate_v4.py                # cold-start evaluation and reports
 └── data/
     ├── target_sequences.pkl          # protein sequences for ESM
     ├── target_to_idx.pkl             # target index ↔ UniProt mapping
-    └── train_data_v2.pt              # training graph dataset (+ split files)
+    └── train_data_v4.pt              # rebuilt training graphs with bond features
 ```
 
 ---
@@ -153,6 +162,56 @@ Metrics are on the pIC50 scale, evaluated separately on each cold-start split.
 
 Pin the exact versions you used in `requirements.txt`. The checkpoint, model code, and protein sequences must stay together; the weights file alone does not contain the model implementation.
 
+### Prepare graphs, train, and evaluate (Windows PowerShell)
+
+From the repository root:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the CUDA-compatible PyTorch build for your machine using the PyTorch installation selector, then:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+After placing `data\BindingDB_final_clean.csv` and the target lookup files in the documented locations, run the following if the four split CSV files are not present:
+
+```powershell
+python -m scripts.prepare_splits --input data\BindingDB_final_clean.csv --output-dir data\splits
+```
+
+If split CSVs include a `UniProt_ID` column, first ensure every ID has a corresponding entry in both target lookup files. Add any missing IDs and their protein sequences together:
+
+```powershell
+python -m scripts.extend_target_index `
+  --train-csv "C:\path\to\split_train_with_uniprot.csv" `
+  --cold-drug-csv "C:\path\to\split_cold_drug_with_uniprot.csv" `
+  --cold-target-csv "C:\path\to\split_cold_target_with_uniprot.csv" `
+  --cold-pair-csv "C:\path\to\split_cold_pair_with_uniprot.csv"
+```
+
+Then build graph tensors using those CSVs:
+
+```powershell
+python -m scripts.build_graphs_v4 `
+  --train-csv "C:\path\to\split_train_with_uniprot.csv" `
+  --cold-drug-csv "C:\path\to\split_cold_drug_with_uniprot.csv" `
+  --cold-target-csv "C:\path\to\split_cold_target_with_uniprot.csv" `
+  --cold-pair-csv "C:\path\to\split_cold_pair_with_uniprot.csv"
+```
+
+If the target index was extended, remove or move aside the stale ESM embedding cache, resume checkpoints, and saved target-validation split before training from scratch. Then train and evaluate:
+
+```powershell
+python -m scripts.train_v4
+python -m scripts.evaluate_v4
+```
+
+Graph generation writes separate `_v4.pt` files and does not overwrite the legacy v2 graph tensors. The v4 run trains from scratch; it uses capped inverse-frequency pIC50-bin weighting derived only from the training subset.
+
 ### Data
 
 The dataset is **not** included in this repository.
@@ -166,17 +225,17 @@ See [PROJECT_REPORT.md](PROJECT_REPORT.md) for the exact procedure and counts at
 ### Train
 
 ```bash
-python train_v4.py
+python -m scripts.train_v4
 ```
 
-The recommended experiment uses frozen ESM-2 150M with cached CLS-plus-mean target embeddings, a deterministic target-held-out validation split, training-only label standardization, and early stopping on validation MAE. It requires CUDA. Install a CUDA-enabled PyTorch build that matches your system before installing the remaining packages with `pip install -r requirements.txt`. The `fair-esm` package provides the Python module; it does not include the pretrained ESM-2 weights. If the target embedding cache is missing, `train_v4.py` downloads those weights once to generate the cache. Subsequent runs reuse the cache. The cache and validation split are created under `data/`; checkpoints are saved as `checkpoints/dti_model_v4_best.pt` and `checkpoints/dti_model_v4_last.pt`. Epochs continue until validation MAE has not improved by 0.001 pIC50 for eight consecutive epochs. The final cold-start test splits are not used for checkpoint selection.
+The v4 experiment uses frozen ESM-2 150M with cached CLS-plus-mean target embeddings, a deterministic target-held-out validation split, training-only label standardization, capped inverse-frequency pIC50-bin-weighted Smooth L1 loss, and early stopping on validation MAE. It requires CUDA. Install a CUDA-enabled PyTorch build that matches your system before installing the remaining packages with `pip install -r requirements.txt`. The `fair-esm` package provides the Python module; it does not include the pretrained ESM-2 weights. If the target embedding cache is missing, `train_v4.py` downloads those weights once to generate the cache. Subsequent runs reuse the cache. The cache and validation split are created under `data/`; checkpoints are saved as `checkpoints/dti_model_v4_gine_best.pt` and `checkpoints/dti_model_v4_gine_last.pt`. Training runs for up to 100 epochs and can stop earlier when validation MAE has not improved by 0.001 pIC50 for eight consecutive epochs. The final cold-start test splits are not used for checkpoint selection.
 
 The 15% validation holdout is by target ID, not sequence cluster, so related protein sequences may occur on both sides. The fixed split is recorded in `data/v4_target_validation_split.json`; the ESM cache is `data/esm2_t30_150M_cls_mean_embeddings.pt`. Both are local generated artifacts and can be regenerated on a different machine.
 
 ### Evaluate
 
 ```bash
-python evaluate_v4.py
+python -m scripts.evaluate_v4
 ```
 
 Metrics and predictions are written to `evaluation/v4_results/`. The earlier v3 scripts remain available for reproducing the previous results.
@@ -221,3 +280,123 @@ Evaluates a stratified sample of 256 **training** examples (seed 42) and writes 
 ## License
 
 Add a `LICENSE` file and state it here. Check BindingDB's terms before redistributing any derived data.
+
+---
+
+## Project file guide
+
+This section describes every project file currently present in the repository's working tree, grouped by folder. It includes locally generated data, checkpoints, reports, and tests as well as source files. The `.git/` folder and the contents of `.venv/`, `venv/`, and `__pycache__/` are excluded: they are Git internals, installed third-party packages, or generated Python bytecode rather than project-authored files.
+
+### Repository root
+
+| File | Purpose |
+|---|---|
+| `.gitignore` | Excludes virtual environments, generated datasets, checkpoints, logs, and local settings from version control. |
+| `README.md` | Project overview, setup/run instructions, limitations, references, and this file guide. |
+| `PROJECT_REPORT.md` | Detailed data-preparation, split-design, historical model, results, limitations, and reproducibility report. |
+| `RESEARCH_PAPER_DRAFT.md` | Concise research-paper-style draft describing the dataset, v4 model, evaluation results, and comparison with GraESM-FuseDTA. |
+| `requirements.txt` | Python package requirements. Install a compatible CUDA-enabled PyTorch build separately before installing this file when GPU training is required. |
+
+### `checkpoints/`
+
+Saved model weights and training states. A checkpoint must be paired with the compatible model code, target index, and (where applicable) target embedding cache.
+
+| File | Purpose |
+|---|---|
+| `.gitattributes` | Configures Git LFS handling for large `.pt` checkpoint files. |
+| `dti_model_epoch10.pt` | Checkpoint from the original v1 experiment. |
+| `dti_model_v2_final.pt` | Final saved checkpoint from the v2 experiment. |
+| `dti_model_v3_stable_epoch15.pt` | Stable v3 checkpoint after the BatchNorm instability fix. |
+| `dti_model_v4_best.pt` | Best checkpoint from the earlier v4 run, before the current GINE revision. |
+| `dti_model_v4_last.pt` | Most recent training-state checkpoint from that earlier v4 run. |
+| `dti_model_v4_gine_best.pt` | Best validation-MAE checkpoint for the current bond-aware GINE v4.2 architecture. |
+| `dti_model_v4_gine_last.pt` | Last resumable training checkpoint for the current v4.2 run. |
+
+### `data/`
+
+Local data artifacts used to construct graphs and encode protein targets. Most are large or machine-specific and are excluded from Git.
+
+| File | Purpose |
+|---|---|
+| `README(data).md` | Describes target lookup artifacts, graph formats, feature dimensions, and data rebuild instructions. |
+| `target_to_idx.pkl` | Maps each UniProt accession to the integer target index stored in graph examples. |
+| `target_sequences.pkl` | Protein sequence list indexed by `target_to_idx.pkl`; index ordering must stay aligned. |
+| `esm2_t30_150M_cls_mean_embeddings.pt` | Cached frozen ESM-2 150M target embeddings (CLS plus residue mean) used by v4 training and evaluation. |
+| `train_data_v2.pt` | Legacy training graph dataset without the v4 bond-feature matrix. |
+| `train_data_v4.pt` | Rebuilt v4.2 training graphs with atom features, directed bond features, target indices, and pIC50 labels. |
+
+`data/splits/` and raw BindingDB input files may also be created locally when preparing data; they are not included in the current project-file inventory.
+
+### `evaluation/`
+
+Serialized cold-start graph datasets are inputs to evaluation scripts; they are not prediction reports.
+
+| File | Purpose |
+|---|---|
+| `README.md` | Explains the cold-start datasets, v2/v4 differences, sample counts, and where result reports are written. |
+| `cold_drug_data_v2.pt` | Legacy cold-drug graphs for older models; no v4 bond features. |
+| `cold_target_data_v2.pt` | Legacy cold-target graphs for older models; no v4 bond features. |
+| `cold_pair_data_v2.pt` | Legacy cold-pair graphs for older models; no v4 bond features. |
+| `cold_drug_data_v4.pt` | Current v4.2 cold-drug graphs, with required directed bond features. |
+| `cold_target_data_v4.pt` | Current v4.2 cold-target graphs, with required directed bond features. |
+| `cold_pair_data_v4.pt` | Current v4.2 strict cold-pair graphs, with required directed bond features. |
+
+### `scripts/`
+
+Scripts implementing data preparation, model training, and evaluation. The current v4.2 entry points use the `.4.2.py` suffix.
+
+**Naming note:** existing quick-start commands earlier in this README refer to the previous `scripts/train_v4.py`, `scripts/evaluate_v4.py`, and `scripts/build_graphs_v4.py` names. The current working tree contains `train_v4.2.py`, `evaluate_v4.2.py`, and `build_graphs_v4.2.py` instead. The current v4.2 scripts also import helper modules using the prior `_v4` names, while the helper files in this tree use `.4.2.py`; reconcile these module names before treating the v4.2 entry points as runnable. This guide records the actual filenames and does not claim the renamed scripts have been smoke-tested.
+
+| File | Purpose |
+|---|---|
+| `prepare_splits.py` | Builds scaffold-based drug and grouped-target train/cold-start CSV splits, then checks for entity leakage. |
+| `extend_target_index_v4.2.py` | Finds split UniProt IDs missing from the current target lookup, fetches their sequences, and appends both mapping and sequence entries while preserving existing indices. |
+| `build_graphs_v4.2.py` | Converts the four split CSVs into PyTorch Geometric graph datasets with 18-dimensional atom features and 14-dimensional directed bond features. |
+| `bond_features_v4.2.py` | Defines the 14 bond features, stereo encoding, and directed edge generation, including dative-bond direction. |
+| `model_v4.2.py` | Defines the current model: residual GINE drug encoder, multi-pooling, frozen ESM embedding projection, gated fusion, and pIC50 regression head. |
+| `loss_weighting_v4.2.py` | Assigns capped inverse-frequency weights to pIC50 bins for the training loss. |
+| `metrics_v4.py` | Implements the concordance-index metric used alongside regression metrics. |
+| `train_v4.2.py` | Main current training entry point: prepares/caches ESM embeddings, creates target-held-out validation, trains with weighted loss and warmup/cosine schedule, early-stops, and saves checkpoints. |
+| `evaluate_v4.2.py` | Evaluates the selected v4.2 checkpoint on cold-drug, cold-target, and cold-pair datasets; writes reports, metrics, and prediction arrays. |
+| `build_target_sequences.py` | Historical target mapping/sequence and embedding preparation utility. Inspect its settings before reuse; it contains environment-specific and notebook-oriented code. |
+| `train_v2.py` | Historical v2 training implementation retained for reference/reproduction. |
+| `train_v3.py` | Historical v3 training implementation using its live/task-adapted ESM pipeline. |
+| `evaluate_v3.py` | Historical v3 evaluation entry point; its configuration contains the former `C:\DTI_GNN` project path and may need adaptation before use elsewhere. |
+
+### `tests/`
+
+Automated tests for core behaviors and regression protection.
+
+| File | What it checks |
+|---|---|
+| `test_bond_features_v4.py` | Bond feature dimensions, bidirectional edges, and directed dative-bond encoding. |
+| `test_extend_target_index.py` | Stable appending of missing targets and validation that sequence/index artifacts align. |
+| `test_loss_weighting_v4.py` | pIC50 bin boundaries, stronger weights for rare bins, weight caps, and invalid-label handling. |
+| `test_metrics_v4.py` | Concordance-index behavior for correct/reversed rankings, ties, and invalid inputs. |
+| `test_model_v4.py` | Model forward/backward operation and rejection of malformed bond-feature inputs. |
+| `test_model_v3.py` | Historical v3 target encoder behavior and graph-model forward/backward behavior. |
+| `test_evaluate_v4_report.py` | v4 report/bin metric calculations and report-writing behavior. |
+| `test_evaluate_train_sample_v3.py` | Historical v3 training-sample diagnostic sampling and stable graph-record identifiers. |
+
+### `results/`
+
+Previously generated evaluation outputs. Text/JSON reports summarize performance; CSV/NPZ files contain tabular or per-example outputs.
+
+| File | Purpose |
+|---|---|
+| `version1/evaluation_report_v1.json` | Saved v1 evaluation metrics in JSON format. |
+| `version2/evaluation_report_v2.txt` | Saved v2 cold-start metrics and pIC50-range breakdowns. |
+| `version3/evaluation_report_v3.txt` | Saved stable-v3 cold-start metrics and pIC50-bin results. |
+| `version4/evaluation_report_v4.1.txt` | Evaluation report for the earlier v4.1 checkpoint/run. |
+| `version4/evaluation_report_v4.2.txt` | Current v4.2 cold-start report, including aggregate metrics and pIC50-bin breakdowns. |
+| `version4/dti_model_v4_validation.csv` | Epoch-by-epoch validation history from the earlier v4 run. |
+| `version4/dti_model_v4_gine_validation.csv` | Epoch-by-epoch validation history for the current GINE v4.2 run. |
+| `version4/train_v4.log` | Captured v4 training log. |
+| `version4/v4_summary_20261014_211342.csv` | Tabular aggregate metrics from an earlier v4 evaluation, with the run timestamp in its filename. |
+| `version4/v4_predictions.npz` | Compressed NumPy arrays of predictions and reference labels from an evaluation run. |
+
+### Local environment folders
+
+- `.venv/` and `venv/` contain installed Python interpreters and third-party dependencies. They are machine-specific and intentionally not enumerated file-by-file.
+- `__pycache__/` folders contain generated Python bytecode and can be recreated by Python.
+- `.git/` contains repository history and internal metadata, not application source.

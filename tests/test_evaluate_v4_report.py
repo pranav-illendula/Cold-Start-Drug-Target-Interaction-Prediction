@@ -22,6 +22,13 @@ class EvaluateV4ReportTests(unittest.TestCase):
         self.assertTrue(np.isfinite(bins[0]["pearson_r"]))
         self.assertEqual(bins[0]["accuracy_0_5"], 100.0)
         self.assertEqual(bins[0]["same_bin_accuracy"], 100.0)
+        self.assertEqual(
+            evaluate_v4.score(
+                np.array([3.1, 3.8]),
+                np.array([3.2, 4.0]),
+            )["ci"],
+            1.0,
+        )
 
     def test_report_is_written_to_requested_path_with_bin_metrics(self):
         result = {
@@ -55,6 +62,7 @@ class EvaluateV4ReportTests(unittest.TestCase):
 
         self.assertIn("PER-pIC50-BIN RESULTS", report)
         self.assertIn("Pearson r", report)
+        self.assertIn("Concordance index", report)
         self.assertIn("Acc±1.0", report)
         self.assertIn("MSE", report)
         self.assertIn("3.0-4.5", report)

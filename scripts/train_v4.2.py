@@ -15,12 +15,24 @@ import torch
 import torch.nn.functional as F
 from scipy.stats import pearsonr
 from torch.nn.utils import clip_grad_norm_
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch_geometric.loader import DataLoader
 
-from model_v4 import ARCHITECTURE_VERSION, DTIModelV4, ESM_MODEL_NAME
+from loss_weighting_v4 import (
+    MAX_PIC50_BIN_WEIGHT,
+    PIC50_BIN_EDGES,
+    build_pic50_bin_weights,
+)
+from metrics_v4 import concordance_index
+from model_v4 import (
+    ARCHITECTURE_VERSION,
+    BOND_FEATURE_DIM,
+    DTIModelV4,
+    ESM_MODEL_NAME,
+)
 
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
 LOG_PATH = os.path.join(PROJECT_DIR, "train_v4.log")
@@ -46,8 +58,11 @@ VALIDATION_TARGET_FRACTION = 0.15
 MAX_PROTEIN_LENGTH = 1024
 EMBEDDING_BATCH_SIZE = 4
 BATCH_SIZE = 128
-LEARNING_RATE = 3e-4
+HIDDEN_DIM = 256
+LEARNING_RATE = 5e-5
 WEIGHT_DECAY = 1e-4
+MAX_EPOCHS = 100
+WARMUP_FRACTION = 0.10
 EARLY_STOPPING_PATIENCE = 8
 EARLY_STOPPING_MIN_DELTA = 1e-3
 LOG_EVERY_N_BATCHES = 100
@@ -203,11 +218,17 @@ def load_or_create_split(target_ids):
 
 def collate_batch(data, indices, device):
     graphs = [data[int(index)] for index in indices]
-    return next(iter(DataLoader(
+    batch = next(iter(DataLoader(
         graphs,
         batch_size=len(graphs),
         shuffle=False,
-    ))).to(device)
+    )))
+    if not hasattr(batch, "edge_attr"):
+        raise ValueError(
+            "Training graphs are missing edge_attr. Rebuild the v4 graph data "
+            f"with {BOND_FEATURE_DIM}-dimensional directed bond features."
+        )
+    return batch.to(device)
 
 
 def evaluate(model, data, indices, device, label_mean, label_std):
@@ -224,6 +245,7 @@ def evaluate(model, data, indices, device, label_mean, label_std):
             prediction = model(
                 batch.x,
                 batch.edge_index,
+                batch.edge_attr,
                 batch.batch,
                 batch.target_idx,
             )
@@ -243,14 +265,15 @@ def evaluate(model, data, indices, device, label_mean, label_std):
         "mae": float(np.mean(np.abs(errors))),
         "rmse": float(np.sqrt(np.mean(errors**2))),
         "pearson_r": correlation,
+        "ci": concordance_index(y_true, y_pred),
         "accuracy_0_5": float(np.mean(np.abs(errors) <= 0.5)),
         "accuracy_1_0": float(np.mean(np.abs(errors) <= 1.0)),
         "accuracy_1_5": float(np.mean(np.abs(errors) <= 1.5)),
     }
 
 
-def save_checkpoint(path, model, optimizer, epoch, best_mae, stale_epochs,
-                    label_mean, label_std, metrics):
+def save_checkpoint(path, model, optimizer, scheduler, epoch, best_mae,
+                    stale_epochs, label_mean, label_std, metrics, loss_config):
     torch.save(
         {
             "architecture_version": ARCHITECTURE_VERSION,
@@ -264,6 +287,8 @@ def save_checkpoint(path, model, optimizer, epoch, best_mae, stale_epochs,
             "validation_metrics": metrics,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "loss_config": loss_config,
         },
         path,
     )
@@ -287,7 +312,7 @@ def main():
         raise ValueError("Target indices must be contiguous from zero.")
 
     training_data = torch.load(
-        os.path.join(DATA_DIR, "train_data_v2.pt"),
+        os.path.join(DATA_DIR, "train_data_v4.pt"),
         map_location="cpu",
         weights_only=False,
     )
@@ -324,12 +349,29 @@ def main():
     model = DTIModelV4(
         drug_in_channels=18,
         target_embeddings=embeddings,
-        hidden_dim=128,
+        hidden_dim=HIDDEN_DIM,
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
         weight_decay=WEIGHT_DECAY,
+    )
+    steps_per_epoch = (len(train_indices) + BATCH_SIZE - 1) // BATCH_SIZE
+    total_steps = MAX_EPOCHS * steps_per_epoch
+    warmup_steps = max(1, int(total_steps * WARMUP_FRACTION))
+    warmup_scheduler = LinearLR(
+        optimizer,
+        start_factor=0.01,
+        total_iters=warmup_steps,
+    )
+    cosine_scheduler = CosineAnnealingLR(
+        optimizer,
+        T_max=max(1, total_steps - warmup_steps),
+    )
+    scheduler = SequentialLR(
+        optimizer,
+        [warmup_scheduler, cosine_scheduler],
+        milestones=[warmup_steps],
     )
     scaler = torch.amp.GradScaler("cuda")
 
@@ -337,14 +379,41 @@ def main():
         [float(training_data[int(index)].y.item()) for index in train_indices],
         dtype=np.float32,
     )
+    pic50_bin_weights, pic50_bin_counts = build_pic50_bin_weights(train_y)
+    pic50_bin_edges_t = torch.tensor(
+        PIC50_BIN_EDGES,
+        dtype=torch.float32,
+        device=device,
+    )
+    pic50_bin_weights_t = torch.tensor(
+        pic50_bin_weights,
+        dtype=torch.float32,
+        device=device,
+    )
+    loss_config = {
+        "name": "inverse_sqrt_pic50_bin_weighted_smooth_l1",
+        "bin_edges": list(PIC50_BIN_EDGES),
+        "max_bin_weight": MAX_PIC50_BIN_WEIGHT,
+        "bin_counts": pic50_bin_counts.tolist(),
+        "bin_weights": pic50_bin_weights.tolist(),
+    }
+    log.info(
+        "pIC50 loss bins: edges=%s counts=%s normalized weights=%s",
+        loss_config["bin_edges"],
+        loss_config["bin_counts"],
+        [round(weight, 4) for weight in loss_config["bin_weights"]],
+    )
     label_mean = float(train_y.mean())
     label_std = float(train_y.std())
     if not np.isfinite(label_std) or label_std <= 0:
         raise ValueError(f"Invalid training label standard deviation: {label_std}")
 
-    best_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_best.pt")
-    last_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_last.pt")
-    history_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_validation.csv")
+    best_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_best.pt")
+    last_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_last.pt")
+    history_path = os.path.join(
+        CHECKPOINT_DIR,
+        "dti_model_v4_gine_validation.csv",
+    )
     start_epoch = 1
     best_mae = float("inf")
     stale_epochs = 0
@@ -357,6 +426,12 @@ def main():
             raise ValueError(f"Incompatible resume checkpoint: {last_path}")
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        if checkpoint.get("loss_config") != loss_config:
+            raise ValueError(
+                "Resume checkpoint pIC50 loss weights do not match the current "
+                "training split."
+            )
         if (
             abs(checkpoint["label_mean"] - label_mean) > 1e-6
             or abs(checkpoint["label_std"] - label_std) > 1e-6
@@ -378,7 +453,7 @@ def main():
         )
 
     epoch = start_epoch
-    while True:
+    while epoch <= MAX_EPOCHS:
         model.train()
         rng = np.random.RandomState(SEED + epoch)
         shuffled_indices = rng.permutation(train_indices)
@@ -396,21 +471,37 @@ def main():
                 prediction = model(
                     batch.x,
                     batch.edge_index,
+                    batch.edge_attr,
                     batch.batch,
                     batch.target_idx,
                 )
-                loss = F.smooth_l1_loss(prediction.float(), labels, beta=1.0)
+                bin_indices = torch.bucketize(
+                    batch.y.float(),
+                    pic50_bin_edges_t,
+                    right=True,
+                )
+                sample_weights = pic50_bin_weights_t[bin_indices]
+                per_example_loss = F.smooth_l1_loss(
+                    prediction.float(),
+                    labels,
+                    beta=1.0,
+                    reduction="none",
+                )
+                loss = (
+                    per_example_loss * sample_weights
+                ).sum() / sample_weights.sum()
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
+            scheduler.step()
             train_loss_sum += loss.item() * batch.num_graphs
             examples_seen += batch.num_graphs
 
             if batch_number % LOG_EVERY_N_BATCHES == 0:
                 log.info(
-                    "Epoch %d | batch %d | train SmoothL1 %.5f",
+                    "Epoch %d | batch %d | train weighted SmoothL1 %.5f",
                     epoch,
                     batch_number,
                     train_loss_sum / examples_seen,
@@ -432,12 +523,14 @@ def main():
                 best_path,
                 model,
                 optimizer,
+                scheduler,
                 epoch,
                 best_mae,
                 stale_epochs,
                 label_mean,
                 label_std,
                 metrics,
+                loss_config,
             )
         else:
             stale_epochs += 1
@@ -448,10 +541,11 @@ def main():
                 destination,
                 fieldnames=[
                     "epoch",
-                    "train_smooth_l1",
+                    "train_weighted_smooth_l1",
                     "validation_mae",
                     "validation_rmse",
                     "validation_pearson_r",
+                    "validation_ci",
                     "accuracy_0_5",
                     "accuracy_1_0",
                     "accuracy_1_5",
@@ -463,10 +557,11 @@ def main():
                 writer.writeheader()
             writer.writerow({
                 "epoch": epoch,
-                "train_smooth_l1": train_loss_sum / examples_seen,
+                "train_weighted_smooth_l1": train_loss_sum / examples_seen,
                 "validation_mae": metrics["mae"],
                 "validation_rmse": metrics["rmse"],
                 "validation_pearson_r": metrics["pearson_r"],
+                "validation_ci": metrics["ci"],
                 "accuracy_0_5": metrics["accuracy_0_5"],
                 "accuracy_1_0": metrics["accuracy_1_0"],
                 "accuracy_1_5": metrics["accuracy_1_5"],
@@ -478,16 +573,18 @@ def main():
             last_path,
             model,
             optimizer,
+            scheduler,
             epoch,
             best_mae,
             stale_epochs,
             label_mean,
             label_std,
             metrics,
+            loss_config,
         )
         log.info(
-            "Epoch %d complete in %.1f min | train SmoothL1 %.5f | "
-            "validation MAE %.4f RMSE %.4f Pearson r %.4f | "
+            "Epoch %d complete in %.1f min | train weighted SmoothL1 %.5f | "
+            "validation MAE %.4f RMSE %.4f Pearson r %.4f CI %.4f | "
             "within 0.5/1.0/1.5: %.1f%%/%.1f%%/%.1f%% | best MAE %.4f | "
             "patience %d/%d",
             epoch,
@@ -496,6 +593,7 @@ def main():
             metrics["mae"],
             metrics["rmse"],
             metrics["pearson_r"],
+            metrics["ci"],
             metrics["accuracy_0_5"] * 100,
             metrics["accuracy_1_0"] * 100,
             metrics["accuracy_1_5"] * 100,
@@ -511,6 +609,8 @@ def main():
             )
             break
         epoch += 1
+    else:
+        log.info("Reached maximum training duration of %d epochs.", MAX_EPOCHS)
 
 
 if __name__ == "__main__":

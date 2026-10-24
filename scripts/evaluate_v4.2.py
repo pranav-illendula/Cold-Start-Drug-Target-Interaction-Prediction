@@ -12,17 +12,23 @@ import torch
 from scipy.stats import pearsonr
 from torch_geometric.loader import DataLoader
 
-from model_v4 import ARCHITECTURE_VERSION, DTIModelV4, ESM_MODEL_NAME
+from metrics_v4 import concordance_index
+from model_v4 import (
+    ARCHITECTURE_VERSION,
+    BOND_FEATURE_DIM,
+    DTIModelV4,
+    ESM_MODEL_NAME,
+)
 
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 EVALUATION_DIR = os.path.join(PROJECT_DIR, "evaluation")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
 OUTPUT_DIR = os.path.join(EVALUATION_DIR, "v4_results")
 REPORT_DIR = os.path.join(PROJECT_DIR, "results", "version3")
 REPORT_PATH = os.path.join(REPORT_DIR, "evaluation_report_v4.txt")
-CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, "dti_model_v4_best.pt")
+CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_best.pt")
 CACHE_PATH = os.path.join(DATA_DIR, "esm2_t30_150M_cls_mean_embeddings.pt")
 BATCH_SIZE = 64
 BIN_WIDTH = 1.5
@@ -51,6 +57,7 @@ def score(targets, predictions):
             if np.std(targets) > 0 and np.std(predictions) > 0
             else float("nan")
         ),
+        "ci": concordance_index(targets, predictions),
         "accuracy_0_5": float(np.mean(np.abs(errors) <= 0.5) * 100),
         "accuracy_1_0": float(np.mean(np.abs(errors) <= 1.0) * 100),
         "accuracy_1_5": float(np.mean(np.abs(errors) <= 1.5) * 100),
@@ -146,6 +153,7 @@ def write_report(checkpoint, device_name, results):
             f"MSE           : {metrics['mse']:.4f}",
             f"MAE           : {metrics['mae']:.4f}",
             f"Pearson r     : {metrics['pearson_r']:.4f}",
+            f"Concordance index: {metrics['ci']:.4f}",
             f"Acc @ ±0.5    : {metrics['accuracy_0_5']:.2f}%",
             f"Acc @ ±1.0    : {metrics['accuracy_1_0']:.2f}%",
             f"Acc @ ±1.5    : {metrics['accuracy_1_5']:.2f}%",
@@ -197,6 +205,7 @@ def write_summary(results):
         "mse",
         "rmse",
         "pearson_r",
+        "ci",
         "evaluation_minutes",
         "accuracy_0_5",
         "accuracy_1_0",
@@ -264,7 +273,7 @@ def main():
     model = DTIModelV4(
         drug_in_channels=18,
         target_embeddings=embeddings,
-        hidden_dim=128,
+        hidden_dim=256,
     ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
@@ -272,12 +281,18 @@ def main():
     results = {}
     prediction_arrays = {}
     for split_name in ("cold_drug", "cold_target", "cold_pair"):
-        dataset_path = os.path.join(EVALUATION_DIR, f"{split_name}_data_v2.pt")
+        dataset_path = os.path.join(EVALUATION_DIR, f"{split_name}_data_v4.pt")
         if not os.path.isfile(dataset_path):
             raise FileNotFoundError(f"Evaluation split not found: {dataset_path}")
         dataset = torch.load(dataset_path, map_location="cpu", weights_only=False)
         if not dataset:
             raise ValueError(f"Evaluation split is empty: {dataset_path}")
+        if not hasattr(dataset[0], "edge_attr"):
+            raise ValueError(
+                f"Evaluation graphs in {dataset_path} are missing edge_attr. "
+                f"Rebuild the v4 graph data with {BOND_FEATURE_DIM}-dimensional "
+                "directed bond features."
+            )
         predictions = []
         targets = []
         evaluation_start = time.time()
@@ -292,6 +307,7 @@ def main():
                 prediction = model(
                     batch.x,
                     batch.edge_index,
+                    batch.edge_attr,
                     batch.batch,
                     batch.target_idx,
                 )
