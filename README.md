@@ -1,285 +1,63 @@
-# Cold-Start Drug–Target Interaction Prediction
+# v4.2 Drug–Target Interaction Architecture
 
-Predicting drug–target binding affinity (**pIC50**) on **BindingDB** in the **cold-start** setting, where the drugs, the targets, or both were never seen during training.
+This README documents the implemented v4.2 model architecture. It predicts pIC50 from a molecular graph and a protein target representation. The drug and target are encoded in separate branches, projected to a shared 256-dimensional space, combined through gated fusion, and passed to a regression head.
 
-A two-tower graph neural network encodes the drug with a **bond-aware residual GINE** and the protein with frozen **ESM-2 150M** embeddings. A gated interaction module combines both representations to predict pIC50.
-
-
-
----
-
-## Highlights
-
-- **Dataset:** 998,586 unique drug–target pairs from BindingDB (human targets, IC50 → pIC50, median over repeated measurements)
-- **Leakage-checked cold-start splits:** Murcko-scaffold split for drugs + grouped split for targets, giving four evaluation sets: `train`, `cold_drug`, `cold_target`, `cold_pair`
-- **Model:** four residual GINE blocks with bond features and mean/max/add pooling; frozen ESM-2 150M; gated drug–target fusion
-- **Training objective:** capped inverse-square-root pIC50-bin weighted Smooth L1 with training-only label standardization
-- **Training schedule:** AdamW with 10% linear warmup followed by cosine decay
-- **Evaluation:** cold-start metrics include MAE, RMSE, Pearson correlation, concordance index, and pIC50-bin breakdowns
-- **Documented debugging:** a BatchNorm failure that caused exploding predictions, diagnosed and fixed with LayerNorm
-- **Honest evaluation:** results reported separately per cold-start split, with error broken down by pIC50 bin
-
----
-
-## Task
-
-**Input:** a drug (molecular graph) and a protein target (amino-acid sequence)
-**Output:** one number — the predicted pIC50 (higher = more potent)
-
-`pIC50 = 9 − log10(IC50 in nM)`
-
-Cold-start evaluation asks whether the model generalizes to entities it has not seen:
-
-| Split | Drug | Target | What it tests |
-|---|---|---|---|
-| `train` | seen | seen | Model fitting |
-| `cold_drug` | **new** | seen | Generalization to new molecules |
-| `cold_target` | seen | **new** | Generalization to new proteins |
-| `cold_pair` | **new** | **new** | Hardest setting |
-
----
-
-## Method
+## Architecture overview
 
 ```mermaid
 flowchart LR
-  A["Drug graph (18 atom + 14 bond features)"] --> B["4x residual GINE (256 channels)"]
-  B --> C["Mean + max + add pooling"]
-  C --> D["Drug projection (256-d)"]
-  E["target_idx → cached ESM-2 150M (CLS + mean, 1280-d)"] --> F["Target projection (256-d)"]
-  D --> G["Gated interaction fusion (1280-d)"]
-  F --> G
-  G --> H["Regression head: 512→256→1"]
-  H --> I["Predicted pIC50"]
+  subgraph Drug["Drug graph encoder"]
+    A["Molecule graph<br/>18 atom features<br/>14 directed bond features"] --> B["Atom input projection<br/>18 → 256"]
+    B --> C["Residual GINE block 1<br/>256 channels"]
+    C --> D["Residual GINE block 2<br/>256 channels"]
+    D --> E["Residual GINE block 3<br/>256 channels"]
+    E --> F["Residual GINE block 4<br/>256 channels"]
+    F --> G["Global mean + max + sum pooling"]
+    G --> H["Drug projection<br/>768 → 256"]
+  end
+  subgraph Protein["Protein target encoder"]
+    I["Target index"] --> J["Cached frozen ESM-2<br/>esm2_t30_150M_UR50D"]
+    J --> K["CLS + residue-mean pooling<br/>1280 dimensions"]
+    K --> L["Target projection<br/>1280 → 256"]
+  end
+  H --> M["Gated fusion<br/>drug, target, product,<br/>absolute difference, adaptive mixture"]
+  L --> M
+  M --> N["Regression head<br/>1280 → 512 → 256 → 1"]
+  N --> O["Predicted pIC50"]
 ```
 
-| Component | Details |
-|---|---|
-| Drug encoder | Atom projection → 4 residual `GINEConv` blocks with directed 14-d bond features |
-| Drug pooling | Concatenated global mean, max, and add pooling → 256-d |
-| Target encoder | Frozen ESM-2 `esm2_t30_150M`, cached CLS-plus-residue-mean embedding (1280-d) |
-| Fusion | Element-wise compatibility, absolute discrepancy, and pair-specific gated mixture |
-| Loss | Smooth L1 weighted by inverse square root of training-set pIC50-bin frequency; normalized weights have mean 1 and are capped at 5× between bins |
-| Optimizer | AdamW (`5e-5`) with 10% linear warmup and cosine decay |
+## Drug representation
 
-The v4 graph tensors must include one 14-d `edge_attr` row per directed edge. The feature layout is five bond-type indicators (single, double, triple, aromatic, dative), conjugation, ring membership, six stereo indicators (none, any, Z, E, cis, trans), and a donor-to-acceptor direction flag for dative bonds. Existing graph tensors must be rebuilt before training or evaluation with this architecture.
+Each molecule is represented as an atom-bond graph. Each atom receives an 18-dimensional feature vector: a 9-way atom-type encoding, a 6-way total-degree encoding, and a 3-way formal-charge-sign encoding.
 
-Loss bins use pIC50 boundaries 4.5, 6, 7.5, 9, 10.5, and 12. Weights are estimated from only the training subset, use capped inverse-square-root bin frequency (maximum 5× before normalization), and are normalized to mean 1. This weights errors on rare high-potency labels more heavily; validation and test metrics remain unweighted.
+Each chemical bond is represented as two directed edges. Each edge has a 14-dimensional feature vector containing:
 
-This revised v4 architecture uses checkpoint revision 7 and writes separate `dti_model_v4_gine_*` checkpoints, leaving earlier v4 checkpoints untouched. Rebuild the training and cold-start graph tensors with the required bond features before starting a new run.
+- Five bond-type indicators: single, double, triple, aromatic, and dative
+- Conjugation and ring-membership indicators
+- Six stereo indicators: none, any, Z, E, cis, and trans
+- A direction flag that identifies the donor-to-acceptor orientation of dative bonds
 
-### Model versions
+The atom features are projected from 18 to 256 dimensions and processed by four residual GINE convolution blocks. Each block incorporates bond features in message passing, applies a two-layer MLP, dropout, a residual connection, and LayerNorm. Graph-level mean, max, and sum pooling are concatenated and projected from 768 to a 256-dimensional drug vector.
 
-| Version | Change | Outcome |
-|---|---|---|
-| **v1** | Baseline two-tower, frozen ESM-2, single linear target projection | Decent on new drugs, weak on new targets |
-| **v2** | Deeper target MLP, 30 epochs, LR scheduler, frozen ESM-2 | Better training fit; no gain on new targets |
-| **v3** | Live ESM-2 from raw sequences, range-weighted loss, target-grouped batches | First run produced exploding predictions (BatchNorm); fixed with LayerNorm (“v3 stable”) |
+The graph datasets must contain an aligned 14-dimensional `edge_attr` row for every directed edge. Graphs built without these bond features are incompatible with this model and must be regenerated before training or evaluation.
 
----
+## Protein representation
 
-## Data and Splits
+The protein branch uses the frozen ESM-2 model `esm2_t30_150M_UR50D`. The final-layer CLS representation is concatenated with the mean of the residue representations to produce a 1,280-dimensional embedding. Embeddings are cached by target index and projected through a 1,280-to-256 layer, LayerNorm, and GELU. ESM-2 creates the fixed embeddings; its weights are not fine-tuned by v4.2 regression training.
 
-1. BindingDB TSV filtered to human targets with affinity data (2,477,542 records), processed in chunks
-2. IC50 selected as a single consistent endpoint; censored values (`>`, `<`) and values ≤ 0 or > 1 mM removed → 1,338,084 records
-3. IC50 converted to pIC50; repeated drug–target measurements aggregated by **median** → 998,586 pairs
-4. Scaffold-based drug split + grouped target split; each drug assigned a single primary scaffold after a leakage bug was found and fixed
+## Gated drug–target fusion and prediction
 
-| Split | Rows | Share |
-|---|---:|---:|
-| train | 653,383 | 65.5% |
-| cold_drug | 161,565 | 16.2% |
-| cold_target | 144,614 | 14.5% |
-| cold_pair | 37,991 | 3.8% |
+Let `d` and `t` be the projected drug and target vectors. The fusion gate is computed from the drug vector, target vector, and their element-wise absolute difference:
 
-All leakage checks (drug or target appearing in both train and test) return **0**.
+`g = sigmoid(W [d, t, |d − t|] + b)`
 
-> **Note:** targets are grouped by exact name, not sequence identity, so close homologs (e.g., EGFR and ErbB-2) can fall on opposite sides of the split.
+The gate forms an adaptive mixture `g ⊙ d + (1 − g) ⊙ t`. The regression head receives the concatenation of `d`, `t`, the element-wise product `d ⊙ t`, `|d − t|`, and the adaptive mixture. This gives a 1,280-dimensional pair representation, which is mapped through 512- and 256-unit hidden layers to one pIC50 prediction.
 
-Details: [PROJECT_REPORT.md §3–4](PROJECT_REPORT.md).
+## Training components associated with v4.2
 
----
+Training uses Smooth L1 loss with pIC50-bin weights computed from training labels only. The bins use boundaries 4.5, 6, 7.5, 9, 10.5, and 12; inverse-square-root frequency weighting is capped at 5 before normalization. This increases the relative contribution of rare potency ranges without weighting validation or test metrics.
 
-## Results
-
-Metrics are on the pIC50 scale, evaluated separately on each cold-start split.
-
-### v3 stable (epoch 15)
-
-| Split | N | RMSE | MAE | Pearson r | Within ±1.0 |
-|---|---:|---:|---:|---:|---:|
-| Cold-drug | 138,556 | 1.4835 | 1.2105 | 0.5528 | 47.05% |
-| Cold-pair | 31,839 | 1.8355 | 1.4740 | 0.2357 | 41.58% |
-| Cold-target | 123,438 | 1.8930 | 1.5363 | 0.2223 | 38.93% |
-
-### Pearson r across versions
-
-| Split | v1 | v2 | v3 stable |
-|---|---:|---:|---:|
-| cold_drug | 0.582 | 0.654 | 0.553 |
-| cold_target | 0.300 | 0.297 | 0.222 |
-| cold_pair | 0.360 | 0.321 | 0.236 |
-
-### Takeaways
-
-- **New drugs are easier than new targets** in every version.
-- **A deeper target network (v2) did not help unseen targets**, pointing to the frozen ESM-2 representation as the bottleneck.
-- **v3 stable did not improve correlation over v1/v2** on the cold-start splits, so the hypothesis that partial ESM fine-tuning plus weighted loss would raise new-target performance is not supported by these results. v3 changed several things at once, and its evaluation sets are smaller than the split files, so the comparison is not strictly like-for-like (see the report for caveats).
-- **High-potency compounds remain hard.** Errors grow sharply with pIC50 (cold-target MAE ≈ 2.5 for pIC50 7.5–9 and ≈ 5.4 for 10.5–12), and the training set contains only 739 examples in 10.5–12 and 27 above 12.
-
----
-
-## Repository Structure
-
-> Adjust to match your repository.
-
-```
-.
-├── README.md
-├── PROJECT_REPORT.md
-├── model_v4.py                       # bond-aware GINE and gated fusion
-├── scripts/
-│   ├── prepare_splits.py             # leakage-checked cold-start CSV splits
-│   ├── build_graphs_v4.py            # atom/bond graph tensor generation
-│   ├── train_v4.py                   # weighted-loss training
-│   └── evaluate_v4.py                # cold-start evaluation and reports
-└── data/
-    ├── target_sequences.pkl          # protein sequences for ESM
-    ├── target_to_idx.pkl             # target index ↔ UniProt mapping
-    └── train_data_v4.pt              # rebuilt training graphs with bond features
-```
-
----
-
-## Getting Started
-
-### Requirements
-
-- Python 3.9+
-- [PyTorch](https://pytorch.org/) and [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/)
-- ESM-2 (e.g., the [`fair-esm`](https://github.com/facebookresearch/esm) package)
-- [RDKit](https://www.rdkit.org/), pandas, NumPy
-
-Pin the exact versions you used in `requirements.txt`. The checkpoint, model code, and protein sequences must stay together; the weights file alone does not contain the model implementation.
-
-### Prepare graphs, train, and evaluate (Windows PowerShell)
-
-From the repository root:
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-Install the CUDA-compatible PyTorch build for your machine using the PyTorch installation selector, then:
-
-```powershell
-python -m pip install -r requirements.txt
-```
-
-After placing `data\BindingDB_final_clean.csv` and the target lookup files in the documented locations, run the following if the four split CSV files are not present:
-
-```powershell
-python -m scripts.prepare_splits --input data\BindingDB_final_clean.csv --output-dir data\splits
-```
-
-If split CSVs include a `UniProt_ID` column, first ensure every ID has a corresponding entry in both target lookup files. Add any missing IDs and their protein sequences together:
-
-```powershell
-python -m scripts.extend_target_index `
-  --train-csv "C:\path\to\split_train_with_uniprot.csv" `
-  --cold-drug-csv "C:\path\to\split_cold_drug_with_uniprot.csv" `
-  --cold-target-csv "C:\path\to\split_cold_target_with_uniprot.csv" `
-  --cold-pair-csv "C:\path\to\split_cold_pair_with_uniprot.csv"
-```
-
-Then build graph tensors using those CSVs:
-
-```powershell
-python -m scripts.build_graphs_v4 `
-  --train-csv "C:\path\to\split_train_with_uniprot.csv" `
-  --cold-drug-csv "C:\path\to\split_cold_drug_with_uniprot.csv" `
-  --cold-target-csv "C:\path\to\split_cold_target_with_uniprot.csv" `
-  --cold-pair-csv "C:\path\to\split_cold_pair_with_uniprot.csv"
-```
-
-If the target index was extended, remove or move aside the stale ESM embedding cache, resume checkpoints, and saved target-validation split before training from scratch. Then train and evaluate:
-
-```powershell
-python -m scripts.train_v4
-python -m scripts.evaluate_v4
-```
-
-Graph generation writes separate `_v4.pt` files and does not overwrite the legacy v2 graph tensors. The v4 run trains from scratch; it uses capped inverse-frequency pIC50-bin weighting derived only from the training subset.
-
-### Data
-
-The dataset is **not** included in this repository.
-
-1. Download the BindingDB TSV from [bindingdb.org](https://www.bindingdb.org/) and check its license terms.
-2. Filter to human targets, keep numeric IC50 values in the range 0 < IC50 ≤ 1 mM, convert to pIC50, and aggregate repeated pairs by median.
-3. Build the cold-start splits (scaffold-based drug split, grouped target split) and convert molecules to graphs.
-
-See [PROJECT_REPORT.md](PROJECT_REPORT.md) for the exact procedure and counts at each step.
-
-### Train
-
-```bash
-python -m scripts.train_v4
-```
-
-The v4 experiment uses frozen ESM-2 150M with cached CLS-plus-mean target embeddings, a deterministic target-held-out validation split, training-only label standardization, capped inverse-frequency pIC50-bin-weighted Smooth L1 loss, and early stopping on validation MAE. It requires CUDA. Install a CUDA-enabled PyTorch build that matches your system before installing the remaining packages with `pip install -r requirements.txt`. The `fair-esm` package provides the Python module; it does not include the pretrained ESM-2 weights. If the target embedding cache is missing, `train_v4.py` downloads those weights once to generate the cache. Subsequent runs reuse the cache. The cache and validation split are created under `data/`; checkpoints are saved as `checkpoints/dti_model_v4_gine_best.pt` and `checkpoints/dti_model_v4_gine_last.pt`. Training runs for up to 100 epochs and can stop earlier when validation MAE has not improved by 0.001 pIC50 for eight consecutive epochs. The final cold-start test splits are not used for checkpoint selection.
-
-The 15% validation holdout is by target ID, not sequence cluster, so related protein sequences may occur on both sides. The fixed split is recorded in `data/v4_target_validation_split.json`; the ESM cache is `data/esm2_t30_150M_cls_mean_embeddings.pt`. Both are local generated artifacts and can be regenerated on a different machine.
-
-### Evaluate
-
-```bash
-python -m scripts.evaluate_v4
-```
-
-Metrics and predictions are written to `evaluation/v4_results/`. The earlier v3 scripts remain available for reproducing the previous results.
-
-### In-sample diagnostic (optional)
-
-```bash
-python evaluate_train_sample_v3.py
-```
-
-Evaluates a stratified sample of 256 **training** examples (seed 42) and writes `train_sample_v3_report.txt`, `.csv`, and `.npz`. This is an in-sample fit check, not a measure of generalization, and it must not be compared with the cold-start metrics.
-
----
-
-## Limitations
-
-- The v4 target holdout is by ID, not sequence cluster
-- Target split by name rather than sequence identity
-- Censored IC50 values (`>`, `<`) were dropped rather than modeled
-- IC50 varies across assays; median aggregation reduces but does not remove this noise
-- Very few high-pIC50 training examples; metrics above pIC50 12 rest on 3–5 test examples
-- Small protein encoder (ESM-2 35M) and a 2D drug graph only
-- Single training run per version; no confidence intervals
-
-## Future Work
-
-- Sequence-identity clustering for the target split
-- Ablations separating frozen ESM size/pooling, fusion, and regression loss
-- Like-for-like comparison of v1, v2, and v3 on identical evaluation rows
-- More quality-controlled high-pIC50 data
-- Censored-regression loss, larger protein encoders, and uncertainty estimates
-
----
-
-## References
-
-- Gilson, M. K., et al. (2016). BindingDB in 2015. *Nucleic Acids Research*, 44(D1), D1045–D1053.
-- Lin, Z., et al. (2023). Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science*, 379(6637), 1123–1130.
-- Kipf, T. N., & Welling, M. (2017). Semi-supervised classification with graph convolutional networks. *ICLR*.
-- Bemis, G. W., & Murcko, M. A. (1996). The properties of known drugs. 1. Molecular frameworks. *Journal of Medicinal Chemistry*, 39(15), 2887–2893.
-
-## License
-
-Add a `LICENSE` file and state it here. Check BindingDB's terms before redistributing any derived data.
+The model is optimized with AdamW (learning rate `5e-5`, weight decay `1e-4`), 10% linear warmup, and cosine decay. Training uses a target-ID-held-out validation set and early stopping on validation MAE. Checkpoint architecture revision is 7.
 
 ---
 
@@ -292,8 +70,7 @@ This section describes every project file currently present in the repository's 
 | File | Purpose |
 |---|---|
 | `.gitignore` | Excludes virtual environments, generated datasets, checkpoints, logs, and local settings from version control. |
-| `README.md` | Project overview, setup/run instructions, limitations, references, and this file guide. |
-| `PROJECT_REPORT.md` | Detailed data-preparation, split-design, historical model, results, limitations, and reproducibility report. |
+| `README.md` | Description of the v4.2 architecture and this project file guide. |
 | `RESEARCH_PAPER_DRAFT.md` | Concise research-paper-style draft describing the dataset, v4 model, evaluation results, and comparison with GraESM-FuseDTA. |
 | `requirements.txt` | Python package requirements. Install a compatible CUDA-enabled PyTorch build separately before installing this file when GPU training is required. |
 
