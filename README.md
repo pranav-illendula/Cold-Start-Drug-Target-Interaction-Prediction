@@ -4,7 +4,7 @@ Predicting drug–target binding affinity (**pIC50**) on **BindingDB** in the **
 
 A two-tower graph neural network encodes the drug with a **bond-aware residual GINE** and the protein with frozen **ESM-2 150M** embeddings. A gated interaction module combines both representations to predict pIC50.
 
-> 📄 Full methodology, results, and discussion: **[PROJECT_REPORT.md](PROJECT_REPORT.md)**
+
 
 ---
 
