@@ -16,10 +16,10 @@ data/*
 *.pkl
 
 # Model weights and checkpoints
-checkpoints/
-*.pt
-*.pth
-*.ckpt
+#checkpoints/
+#*.pt
+#*.pth
+#*.ckpt
 
 # Outputs and logs
 evaluation/
