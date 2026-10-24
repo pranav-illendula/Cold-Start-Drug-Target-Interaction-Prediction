@@ -53,7 +53,11 @@ Let `d` and `t` be the projected drug and target vectors. The fusion gate is com
 
 The gate forms an adaptive mixture `g ⊙ d + (1 − g) ⊙ t`. The regression head receives the concatenation of `d`, `t`, the element-wise product `d ⊙ t`, `|d − t|`, and the adaptive mixture. This gives a 1,280-dimensional pair representation, which is mapped through 512- and 256-unit hidden layers to one pIC50 prediction.
 
+<<<<<<< HEAD
 ## Training components associated with v4.2
+=======
+
+>>>>>>> da513f51a967b85ce8d54a641eef99ad7345a229
 
 Training uses Smooth L1 loss with pIC50-bin weights computed from training labels only. The bins use boundaries 4.5, 6, 7.5, 9, 10.5, and 12; inverse-square-root frequency weighting is capped at 5 before normalization. This increases the relative contribution of rare potency ranges without weighting validation or test metrics.
 
