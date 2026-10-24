@@ -96,7 +96,7 @@ All leakage checks (drug or target appearing in both train and test) return **0*
 
 > **Note:** targets are grouped by exact name, not sequence identity, so close homologs (e.g., EGFR and ErbB-2) can fall on opposite sides of the split.
 
-Details: [PROJECT_REPORT.md §3–4](PROJECT_REPORT.md).
+
 
 ---
 
