@@ -50,3 +50,4 @@ def molecule_bond_features(molecule):
         edge_index[1].extend((target, source))
         edge_attr.extend((forward_features, reverse_features))
     return edge_index, edge_attr
+
