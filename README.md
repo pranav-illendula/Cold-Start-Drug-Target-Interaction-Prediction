@@ -132,7 +132,7 @@ Scripts implementing data preparation, model training, and evaluation. The curre
 |---|---|
 | `prepare_splits.py` | Builds scaffold-based drug and grouped-target train/cold-start CSV splits, then checks for entity leakage. |
 | `extend_target_index_v4.2.py` | Finds split UniProt IDs missing from the current target lookup, fetches their sequences, and appends both mapping and sequence entries while preserving existing indices. |
-| `build_graphs_v4.2.py` | Converts the four split CSVs into PyTorch Geometric graph datasets with 18-dimensional atom features and 14-dimensional directed bond features. |
+| `build_graphs_v4.2.py` | Converts the four split CSVs into PyTorch Geometric graph datasets with 18-dimensional atom features |
 | `bond_features_v4.2.py` | Defines the 14 bond features, stereo encoding, and directed edge generation, including dative-bond direction. |
 | `model_v4.2.py` | Defines the current model: residual GINE drug encoder, multi-pooling, frozen ESM embedding projection, gated fusion, and pIC50 regression head. |
 | `loss_weighting_v4.2.py` | Assigns capped inverse-frequency weights to pIC50 bins for the training loss. |
