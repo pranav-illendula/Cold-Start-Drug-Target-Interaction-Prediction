@@ -1,5 +1,8 @@
+# Training script: creates/loads protein embeddings, splits by target, trains DTIModelV4,
+# evaluates validation performance, and saves checkpoints and epoch-by-epoch metrics.
 """Train the frozen ESM-2 150M model with target-held-out validation."""
 
+# Standard-library imports for CSV output, hashing, configuration files, logging, paths, and timing.
 import csv
 import hashlib
 import json
@@ -9,6 +12,7 @@ import pickle
 import sys
 import time
 
+# Third-party libraries for ESM-2 embeddings, numerical operations, neural-network training, and graph batching.
 import esm
 import numpy as np
 import torch
@@ -18,6 +22,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch_geometric.loader import DataLoader
 
+# Project-specific utilities: pIC50-bin weighting, evaluation metrics, and the V4 model architecture.
 from loss_weighting_v4 import (
     MAX_PIC50_BIN_WEIGHT,
     PIC50_BIN_EDGES,
@@ -32,6 +37,7 @@ from model_v4 import (
 )
 
 
+# Resolve project folders and output paths relative to this script.
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
@@ -43,6 +49,7 @@ CACHE_PATH = os.path.join(
 SPLIT_PATH = os.path.join(DATA_DIR, "v4_target_validation_split.json")
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
+# Log progress to both a file and the terminal so long training runs can be monitored.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(message)s",
@@ -53,6 +60,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# Training configuration: reproducibility, batch sizes, model dimensions, optimization, and stopping rules.
 SEED = 17
 VALIDATION_TARGET_FRACTION = 0.15
 MAX_PROTEIN_LENGTH = 1024
@@ -68,6 +76,7 @@ EARLY_STOPPING_MIN_DELTA = 1e-3
 LOG_EVERY_N_BATCHES = 100
 
 
+# Build a SHA-256 fingerprint of the ordered protein sequences to verify embedding-cache compatibility.
 def sequence_fingerprint(target_sequences):
     digest = hashlib.sha256()
     for index, sequence in enumerate(target_sequences):
@@ -78,8 +87,11 @@ def sequence_fingerprint(target_sequences):
     return digest.hexdigest()
 
 
+# Load a validated cached ESM-2 embedding tensor, or generate and save embeddings if no cache exists.
 def load_or_create_embeddings(target_sequences, device):
+    # The fingerprint detects changes in sequence content or ordering.
     fingerprint = sequence_fingerprint(target_sequences)
+    # Reuse the cache only if its model, pooling, length, and sequence metadata match.
     if os.path.isfile(CACHE_PATH):
         cache = torch.load(CACHE_PATH, map_location="cpu", weights_only=False)
         if (
@@ -101,13 +113,16 @@ def load_or_create_embeddings(target_sequences, device):
         log.info("Loaded cached frozen ESM-2 150M embeddings from %s", CACHE_PATH)
         return embeddings.to(device)
 
+    # No usable cache exists, so load ESM-2 and use it as a frozen feature extractor.
     log.info("Loading frozen ESM-2 150M to generate target embedding cache.")
     esm_model, alphabet = esm.pretrained.esm2_t30_150M_UR50D()
+    # Freeze ESM-2 parameters: the protein language model is not fine-tuned here.
     for parameter in esm_model.parameters():
         parameter.requires_grad = False
     esm_model.eval().to(device)
     batch_converter = alphabet.get_batch_converter()
 
+    # Truncate long sequences and sort by length to make batches more efficient.
     ordered = sorted(
         (
             (index, str(sequence)[:MAX_PROTEIN_LENGTH])
@@ -118,12 +133,14 @@ def load_or_create_embeddings(target_sequences, device):
     embeddings = torch.empty((len(target_sequences), 1280), dtype=torch.float32)
     start_time = time.time()
 
+    # Generate embeddings without gradients because ESM-2 is frozen.
     with torch.inference_mode():
         for start in range(0, len(ordered), EMBEDDING_BATCH_SIZE):
             chunk = ordered[start : start + EMBEDDING_BATCH_SIZE]
             sequences = [(str(index), sequence) for index, sequence in chunk]
             _, _, tokens = batch_converter(sequences)
             tokens = tokens.to(device)
+            # Use CUDA mixed precision to reduce memory use and speed up embedding generation.
             with torch.autocast("cuda", dtype=torch.float16, enabled=True):
                 results = esm_model(
                     tokens,
@@ -133,7 +150,9 @@ def load_or_create_embeddings(target_sequences, device):
             representations = results["representations"][30].float()
             pooled = []
             for row, (_, sequence) in enumerate(chunk):
+                # Exclude the special beginning token when averaging amino-acid residue representations.
                 residues = representations[row, 1 : len(sequence) + 1]
+                # Concatenate the CLS vector and mean residue vector to form a 1280-D embedding.
                 pooled.append(torch.cat([representations[row, 0], residues.mean(0)]))
             indices = [index for index, _ in chunk]
             embeddings[indices] = torch.stack(pooled).cpu()
@@ -149,6 +168,7 @@ def load_or_create_embeddings(target_sequences, device):
 
     del esm_model
     torch.cuda.empty_cache()
+    # Save embeddings and metadata so future runs can reuse the cache safely.
     torch.save(
         {
             "model_name": ESM_MODEL_NAME,
@@ -168,7 +188,9 @@ def load_or_create_embeddings(target_sequences, device):
     return embeddings.to(device)
 
 
+# Create or reload a reproducible target-held-out train/validation split.
 def load_or_create_split(target_ids):
+    # If a split already exists, validate it and reuse it for reproducibility.
     if os.path.isfile(SPLIT_PATH):
         with open(SPLIT_PATH, encoding="utf-8") as source:
             split = json.load(source)
@@ -185,6 +207,7 @@ def load_or_create_split(target_ids):
         log.info("Loaded fixed target-held-out split from %s", SPLIT_PATH)
         return train_targets, validation_targets
 
+    # Otherwise, shuffle target indices with a fixed seed and reserve about 15% for validation.
     target_order = np.array(sorted(target_ids), dtype=np.int64)
     rng = np.random.RandomState(SEED)
     rng.shuffle(target_order)
@@ -195,6 +218,7 @@ def load_or_create_split(target_ids):
             round(len(target_order) * VALIDATION_TARGET_FRACTION),
         ),
     )
+    # Hold out entire targets, rather than randomly splitting interaction rows.
     validation_targets = set(target_order[:validation_count].tolist())
     train_targets = target_ids - validation_targets
     with open(SPLIT_PATH, "w", encoding="utf-8") as destination:
@@ -216,6 +240,7 @@ def load_or_create_split(target_ids):
     return train_targets, validation_targets
 
 
+# Assemble selected PyTorch Geometric molecular graphs into one batch and validate bond features.
 def collate_batch(data, indices, device):
     graphs = [data[int(index)] for index in indices]
     batch = next(iter(DataLoader(
@@ -231,6 +256,7 @@ def collate_batch(data, indices, device):
     return batch.to(device)
 
 
+# Evaluate a model without gradient updates and return regression and ranking metrics.
 def evaluate(model, data, indices, device, label_mean, label_std):
     model.eval()
     targets = []
@@ -249,6 +275,7 @@ def evaluate(model, data, indices, device, label_mean, label_std):
                 batch.batch,
                 batch.target_idx,
             )
+            # Convert normalized model outputs back to the original pIC50 scale.
             prediction = prediction.float() * label_std + label_mean
             predictions.append(prediction.cpu().numpy())
             targets.append(batch.y.float().cpu().numpy())
@@ -261,6 +288,7 @@ def evaluate(model, data, indices, device, label_mean, label_std):
         if np.std(y_true) > 0 and np.std(y_pred) > 0
         else float("nan")
     )
+    # Summarize absolute/squared errors, correlation, concordance, and tolerance-based accuracy.
     return {
         "mae": float(np.mean(np.abs(errors))),
         "rmse": float(np.sqrt(np.mean(errors**2))),
@@ -272,6 +300,7 @@ def evaluate(model, data, indices, device, label_mean, label_std):
     }
 
 
+# Save model weights and training state so the best model can be selected or training resumed.
 def save_checkpoint(path, model, optimizer, scheduler, epoch, best_mae,
                     stale_epochs, label_mean, label_std, metrics, loss_config):
     torch.save(
@@ -294,7 +323,9 @@ def save_checkpoint(path, model, optimizer, scheduler, epoch, best_mae,
     )
 
 
+# Main orchestration function: validates the GPU and data, builds the model, then trains and evaluates it.
 def main():
+    # This run requires CUDA; stop early instead of silently falling back to CPU.
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for this requested ESM-2 150M run.")
     device = torch.device("cuda")
@@ -302,6 +333,7 @@ def main():
     np.random.seed(SEED)
     log.info("Device: %s (%s)", device, torch.cuda.get_device_name(0))
 
+    # Load the protein-index mapping and ordered sequences used by graph target_idx values.
     with open(os.path.join(DATA_DIR, "target_to_idx.pkl"), "rb") as source:
         target_to_idx = pickle.load(source)
     with open(os.path.join(DATA_DIR, "target_sequences.pkl"), "rb") as source:
@@ -311,16 +343,19 @@ def main():
     if set(target_to_idx.values()) != set(range(len(target_sequences))):
         raise ValueError("Target indices must be contiguous from zero.")
 
+    # Load the preprocessed drug molecular graphs and their target indices/pIC50 labels.
     training_data = torch.load(
         os.path.join(DATA_DIR, "train_data_v4.pt"),
         map_location="cpu",
         weights_only=False,
     )
+    # Find all protein targets represented in the training graphs and create a target-held-out split.
     target_ids = {int(sample.target_idx.item()) for sample in training_data}
     if not target_ids.issubset(set(range(len(target_sequences)))):
         raise ValueError("Training data contains a target index without a sequence.")
     train_targets, validation_targets = load_or_create_split(target_ids)
 
+    # Convert target-level partitions into row indices for training and validation examples.
     train_indices = np.asarray(
         [
             index for index, sample in enumerate(training_data)
@@ -345,12 +380,14 @@ def main():
         len(validation_targets),
     )
 
+    # Prepare protein embeddings and initialize the DTI model with them.
     embeddings = load_or_create_embeddings(target_sequences, device)
     model = DTIModelV4(
         drug_in_channels=18,
         target_embeddings=embeddings,
         hidden_dim=HIDDEN_DIM,
     ).to(device)
+    # AdamW updates trainable DTI model parameters; the learning-rate scheduler warms up then decays.
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -373,12 +410,15 @@ def main():
         [warmup_scheduler, cosine_scheduler],
         milestones=[warmup_steps],
     )
+    # Gradient scaling supports stable mixed-precision training on CUDA.
     scaler = torch.amp.GradScaler("cuda")
 
+    # Compute training-label statistics and weights for the pIC50 value ranges.
     train_y = np.asarray(
         [float(training_data[int(index)].y.item()) for index in train_indices],
         dtype=np.float32,
     )
+    # Less common pIC50 bins can receive different loss weights to reduce imbalance.
     pic50_bin_weights, pic50_bin_counts = build_pic50_bin_weights(train_y)
     pic50_bin_edges_t = torch.tensor(
         PIC50_BIN_EDGES,
@@ -403,11 +443,13 @@ def main():
         loss_config["bin_counts"],
         [round(weight, 4) for weight in loss_config["bin_weights"]],
     )
+    # Standardize training labels for optimization; save these statistics to reverse the scaling later.
     label_mean = float(train_y.mean())
     label_std = float(train_y.std())
     if not np.isfinite(label_std) or label_std <= 0:
         raise ValueError(f"Invalid training label standard deviation: {label_std}")
 
+    # Define output files for the best checkpoint, latest resumable checkpoint, and validation history.
     best_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_best.pt")
     last_path = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_last.pt")
     history_path = os.path.join(
@@ -417,6 +459,7 @@ def main():
     start_epoch = 1
     best_mae = float("inf")
     stale_epochs = 0
+    # If a previous run exists, restore its model/optimizer/scheduler and continue from the next epoch.
     if os.path.isfile(last_path):
         checkpoint = torch.load(last_path, map_location=device, weights_only=False)
         if (
@@ -452,8 +495,10 @@ def main():
             f"Cannot resume without the selected best checkpoint: {best_path}"
         )
 
+    # Main training loop: shuffle training examples, optimize in batches, evaluate, and save results.
     epoch = start_epoch
     while epoch <= MAX_EPOCHS:
+        # Enable training mode and shuffle training examples for this epoch.
         model.train()
         rng = np.random.RandomState(SEED + epoch)
         shuffled_indices = rng.permutation(train_indices)
@@ -465,8 +510,10 @@ def main():
         for batch_number, start in enumerate(batches, 1):
             batch_indices = shuffled_indices[start : start + BATCH_SIZE]
             batch = collate_batch(training_data, batch_indices, device)
+            # Normalize pIC50 labels using statistics calculated only from the training partition.
             labels = (batch.y.float() - label_mean) / label_std
             optimizer.zero_grad(set_to_none=True)
+            # Run the forward pass in mixed precision, then compute weighted Smooth L1 loss.
             with torch.autocast("cuda", dtype=torch.float16):
                 prediction = model(
                     batch.x,
@@ -475,6 +522,7 @@ def main():
                     batch.batch,
                     batch.target_idx,
                 )
+                # Assign each example to a pIC50 bin and retrieve its configured loss weight.
                 bin_indices = torch.bucketize(
                     batch.y.float(),
                     pic50_bin_edges_t,
@@ -490,6 +538,7 @@ def main():
                 loss = (
                     per_example_loss * sample_weights
                 ).sum() / sample_weights.sum()
+            # Backpropagate, clip gradients, update model weights, and advance the learning-rate schedule.
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -507,6 +556,7 @@ def main():
                     train_loss_sum / examples_seen,
                 )
 
+        # Evaluate on held-out protein targets and determine whether validation MAE improved.
         metrics = evaluate(
             model,
             training_data,
@@ -519,6 +569,7 @@ def main():
         if improved:
             best_mae = metrics["mae"]
             stale_epochs = 0
+        # Save the latest state after each epoch so interrupted training can resume.
             save_checkpoint(
                 best_path,
                 model,
@@ -535,6 +586,7 @@ def main():
         else:
             stale_epochs += 1
 
+        # Append this epoch’s training/validation metrics to a CSV history file.
         history_exists = os.path.isfile(history_path)
         with open(history_path, "a", newline="", encoding="utf-8") as destination:
             writer = csv.DictWriter(
@@ -601,6 +653,7 @@ def main():
             stale_epochs,
             EARLY_STOPPING_PATIENCE,
         )
+        # Stop when validation MAE has not improved sufficiently for the patience window.
         if stale_epochs >= EARLY_STOPPING_PATIENCE:
             log.info(
                 "Early stopping after epoch %d; best checkpoint is %s.",
@@ -613,5 +666,6 @@ def main():
         log.info("Reached maximum training duration of %d epochs.", MAX_EPOCHS)
 
 
+# Run the training pipeline only when this file is executed directly.
 if __name__ == "__main__":
     main()
