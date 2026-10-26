@@ -13,7 +13,7 @@ from scipy.stats import pearsonr
 from torch_geometric.loader import DataLoader
 
 from metrics_v4 import concordance_index
-from model_v4 import (
+from model_v4_2 import (
     ARCHITECTURE_VERSION,
     BOND_FEATURE_DIM,
     DTIModelV4,

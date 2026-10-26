@@ -53,11 +53,7 @@ Let `d` and `t` be the projected drug and target vectors. The fusion gate is com
 
 The gate forms an adaptive mixture `g ⊙ d + (1 − g) ⊙ t`. The regression head receives the concatenation of `d`, `t`, the element-wise product `d ⊙ t`, `|d − t|`, and the adaptive mixture. This gives a 1,280-dimensional pair representation, which is mapped through 512- and 256-unit hidden layers to one pIC50 prediction.
 
-<<<<<<< HEAD
-## Training components associated with v4.2
-=======
-
->>>>>>> da513f51a967b85ce8d54a641eef99ad7345a229
+## Training components associated with v4_2
 
 Training uses Smooth L1 loss with pIC50-bin weights computed from training labels only. The bins use boundaries 4.5, 6, 7.5, 9, 10.5, and 12; inverse-square-root frequency weighting is capped at 5 before normalization. This increases the relative contribution of rare potency ranges without weighting validation or test metrics.
 
@@ -124,21 +120,21 @@ Serialized cold-start graph datasets are inputs to evaluation scripts; they are 
 
 ### `scripts/`
 
-Scripts implementing data preparation, model training, and evaluation. The current v4.2 entry points use the `.4.2.py` suffix.
+Scripts implementing data preparation, model training, and evaluation. The current v4_2 entry points use the `_v4_2.py` suffix.
 
-**Naming note:** existing quick-start commands earlier in this README refer to the previous `scripts/train_v4.py`, `scripts/evaluate_v4.py`, and `scripts/build_graphs_v4.py` names. The current working tree contains `train_v4.2.py`, `evaluate_v4.2.py`, and `build_graphs_v4.2.py` instead. The current v4.2 scripts also import helper modules using the prior `_v4` names, while the helper files in this tree use `.4.2.py`; reconcile these module names before treating the v4.2 entry points as runnable. This guide records the actual filenames and does not claim the renamed scripts have been smoke-tested.
+**Naming note:** existing quick-start commands earlier in this README refer to the previous `scripts/train_v4.py`, `scripts/evaluate_v4.py`, and `scripts/build_graphs_v4.py` names. The current working tree contains `train_v4_2.py`, `evaluate_v4_2.py`, and `build_graphs_v4_2.py` instead. All v4_2 scripts import their helper modules using matching `_v4_2` names.
 
 | File | Purpose |
 |---|---|
 | `prepare_splits.py` | Builds scaffold-based drug and grouped-target train/cold-start CSV splits, then checks for entity leakage. |
-| `extend_target_index_v4.2.py` | Finds split UniProt IDs missing from the current target lookup, fetches their sequences, and appends both mapping and sequence entries while preserving existing indices. |
-| `build_graphs_v4.2.py` | Converts the four split CSVs into PyTorch Geometric graph datasets with 18-dimensional atom features |
-| `bond_features_v4.2.py` | Defines the 14 bond features, stereo encoding, and directed edge generation, including dative-bond direction. |
-| `model_v4.2.py` | Defines the current model: residual GINE drug encoder, multi-pooling, frozen ESM embedding projection, gated fusion, and pIC50 regression head. |
-| `loss_weighting_v4.2.py` | Assigns capped inverse-frequency weights to pIC50 bins for the training loss. |
+| `extend_target_index_v4_2.py` | Finds split UniProt IDs missing from the current target lookup, fetches their sequences, and appends both mapping and sequence entries while preserving existing indices. |
+| `build_graphs_v4_2.py` | Converts the four split CSVs into PyTorch Geometric graph datasets with 18-dimensional atom features |
+| `bond_features_v4_2.py` | Defines the 14 bond features, stereo encoding, and directed edge generation, including dative-bond direction. |
+| `model_v4_2.py` | Defines the current model: residual GINE drug encoder, multi-pooling, frozen ESM embedding projection, gated fusion, and pIC50 regression head. |
+| `loss_weighting_v4_2.py` | Assigns capped inverse-frequency weights to pIC50 bins for the training loss. |
 | `metrics_v4.py` | Implements the concordance-index metric used alongside regression metrics. |
-| `train_v4.2.py` | Main current training entry point: prepares/caches ESM embeddings, creates target-held-out validation, trains with weighted loss and warmup/cosine schedule, early-stops, and saves checkpoints. |
-| `evaluate_v4.2.py` | Evaluates the selected v4.2 checkpoint on cold-drug, cold-target, and cold-pair datasets; writes reports, metrics, and prediction arrays. |
+| `train_v4_2.py` | Main current training entry point: prepares/caches ESM embeddings, creates target-held-out validation, trains with weighted loss and warmup/cosine schedule, early-stops, and saves checkpoints. |
+| `evaluate_v4_2.py` | Evaluates the selected v4_2 checkpoint on cold-drug, cold-target, and cold-pair datasets; writes reports, metrics, and prediction arrays. |
 | `build_target_sequences.py` | Historical target mapping/sequence and embedding preparation utility. Inspect its settings before reuse; it contains environment-specific and notebook-oriented code. |
 | `train_v2.py` | Historical v2 training implementation retained for reference/reproduction. |
 | `train_v3.py` | Historical v3 training implementation using its live/task-adapted ESM pipeline. |
@@ -169,7 +165,7 @@ Previously generated evaluation outputs. Text/JSON reports summarize performance
 | `version2/evaluation_report_v2.txt` | Saved v2 cold-start metrics and pIC50-range breakdowns. |
 | `version3/evaluation_report_v3.txt` | Saved stable-v3 cold-start metrics and pIC50-bin results. |
 | `version4/evaluation_report_v4.1.txt` | Evaluation report for the earlier v4.1 checkpoint/run. |
-| `version4/evaluation_report_v4.2.txt` | Current v4.2 cold-start report, including aggregate metrics and pIC50-bin breakdowns. |
+| `version4/evaluation_report_v4_2.txt` | Current v4_2 cold-start report, including aggregate metrics and pIC50-bin breakdowns. |
 | `version4/dti_model_v4_validation.csv` | Epoch-by-epoch validation history from the earlier v4 run. |
 | `version4/dti_model_v4_gine_validation.csv` | Epoch-by-epoch validation history for the current GINE v4.2 run. |
 | `version4/train_v4.log` | Captured v4 training log. |

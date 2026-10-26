@@ -2,7 +2,7 @@ import unittest
 
 from rdkit import Chem
 
-from bond_features_v4 import (
+from bond_features_v4_2 import (
     BOND_FEATURE_DIM,
     bond_features,
     molecule_bond_features,

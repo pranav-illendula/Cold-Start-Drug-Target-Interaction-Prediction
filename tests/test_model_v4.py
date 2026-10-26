@@ -3,8 +3,8 @@ import unittest
 import torch
 from torch_geometric.data import Batch, Data
 
-from bond_features_v4 import BOND_FEATURE_DIM
-from model_v4 import DTIModelV4
+from bond_features_v4_2 import BOND_FEATURE_DIM
+from model_v4_2 import DTIModelV4
 
 
 class CachedEmbeddingModelTests(unittest.TestCase):

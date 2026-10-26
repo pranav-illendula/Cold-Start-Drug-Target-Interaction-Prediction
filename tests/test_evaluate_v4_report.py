@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-import evaluate_v4
+import evaluate_v4_2
 
 
 class EvaluateV4ReportTests(unittest.TestCase):
@@ -13,7 +13,7 @@ class EvaluateV4ReportTests(unittest.TestCase):
         targets = np.array([3.1, 3.8, 4.6, 5.2])
         predictions = np.array([3.2, 4.0, 4.8, 5.0])
 
-        bins = evaluate_v4.score_by_pic50_bin(targets, predictions)
+        bins = evaluate_v4_2.score_by_pic50_bin(targets, predictions)
 
         self.assertEqual([row["range"] for row in bins], ["3.0-4.5", "4.5-6.0"])
         self.assertEqual([row["n"] for row in bins], [2, 2])
@@ -23,7 +23,7 @@ class EvaluateV4ReportTests(unittest.TestCase):
         self.assertEqual(bins[0]["accuracy_0_5"], 100.0)
         self.assertEqual(bins[0]["same_bin_accuracy"], 100.0)
         self.assertEqual(
-            evaluate_v4.score(
+            evaluate_v4_2.score(
                 np.array([3.1, 3.8]),
                 np.array([3.2, 4.0]),
             )["ci"],
@@ -33,13 +33,13 @@ class EvaluateV4ReportTests(unittest.TestCase):
     def test_report_is_written_to_requested_path_with_bin_metrics(self):
         result = {
             "metrics": {
-                **evaluate_v4.score(
+                **evaluate_v4_2.score(
                     np.array([3.1, 3.8]),
                     np.array([3.2, 4.0]),
                 ),
                 "evaluation_minutes": 0.25,
             },
-            "bins": evaluate_v4.score_by_pic50_bin(
+            "bins": evaluate_v4_2.score_by_pic50_bin(
                 np.array([3.1, 3.8]),
                 np.array([3.2, 4.0]),
             ),
@@ -56,8 +56,8 @@ class EvaluateV4ReportTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             report_path = str(Path(temp_dir) / "evaluation_report_v4.txt")
-            with patch.object(evaluate_v4, "REPORT_PATH", report_path):
-                evaluate_v4.write_report(checkpoint, "cpu", results)
+            with patch.object(evaluate_v4_2, "REPORT_PATH", report_path):
+                evaluate_v4_2.write_report(checkpoint, "cpu", results)
             report = Path(report_path).read_text(encoding="utf-8")
 
         self.assertIn("PER-pIC50-BIN RESULTS", report)
@@ -69,7 +69,7 @@ class EvaluateV4ReportTests(unittest.TestCase):
 
     def test_locked_summary_is_saved_to_a_timestamped_fallback(self):
         result = {
-            "metrics": evaluate_v4.score(
+            "metrics": evaluate_v4_2.score(
                 np.array([3.1, 3.8]),
                 np.array([3.2, 4.0]),
             ),
@@ -87,12 +87,12 @@ class EvaluateV4ReportTests(unittest.TestCase):
                     raise PermissionError("File is locked")
                 return real_open(path, *args, **kwargs)
 
-            with patch.object(evaluate_v4, "OUTPUT_DIR", str(output_dir)):
+            with patch.object(evaluate_v4_2, "OUTPUT_DIR", str(output_dir)):
                 with patch(
                     "builtins.open",
                     side_effect=open_with_locked_summary,
                 ):
-                    saved_path = Path(evaluate_v4.write_summary(results))
+                    saved_path = Path(evaluate_v4_2.write_summary(results))
 
             self.assertNotEqual(saved_path, locked_path)
             self.assertTrue(saved_path.name.startswith("v4_summary_"))

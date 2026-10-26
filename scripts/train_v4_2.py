@@ -23,13 +23,13 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch_geometric.loader import DataLoader
 
 # Project-specific utilities: pIC50-bin weighting, evaluation metrics, and the V4 model architecture.
-from loss_weighting_v4 import (
+from loss_weighting_v4_2 import (
     MAX_PIC50_BIN_WEIGHT,
     PIC50_BIN_EDGES,
     build_pic50_bin_weights,
 )
 from metrics_v4 import concordance_index
-from model_v4 import (
+from model_v4_2 import (
     ARCHITECTURE_VERSION,
     BOND_FEATURE_DIM,
     DTIModelV4,

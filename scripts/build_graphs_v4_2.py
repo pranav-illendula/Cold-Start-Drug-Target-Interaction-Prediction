@@ -11,7 +11,7 @@ import torch
 from rdkit import Chem
 from torch_geometric.data import Data
 
-from bond_features_v4.2 import BOND_FEATURE_DIM, molecule_bond_features
+from bond_features_v4_2 import BOND_FEATURE_DIM, molecule_bond_features
 
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

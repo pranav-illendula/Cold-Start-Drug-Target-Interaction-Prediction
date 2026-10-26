@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.extend_target_index import extend_target_index
+from scripts.extend_target_index_v4_2 import extend_target_index
 
 
 class ExtendTargetIndexTests(unittest.TestCase):

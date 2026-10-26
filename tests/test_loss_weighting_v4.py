@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from loss_weighting_v4 import (
+from loss_weighting_v4_2 import (
     MAX_PIC50_BIN_WEIGHT,
     PIC50_BIN_EDGES,
     build_pic50_bin_weights,
