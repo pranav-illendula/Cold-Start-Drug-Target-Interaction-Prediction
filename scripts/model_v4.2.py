@@ -8,7 +8,7 @@ from torch_geometric.nn import (
     global_mean_pool,
 )
 
-from bond_features_v4 import BOND_FEATURE_DIM
+from bond_features_v4.2 import BOND_FEATURE_DIM
 
 
 ARCHITECTURE_VERSION = 7
