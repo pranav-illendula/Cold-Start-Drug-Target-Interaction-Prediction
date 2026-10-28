@@ -61,6 +61,25 @@ The model is optimized with AdamW (learning rate `5e-5`, weight decay `1e-4`), 1
 
 ---
 
+## Isolated Section 4 enhancement workflow
+
+The Section 4 experiment is implemented separately from the v4.2 baseline. It adds learned attention over frozen ESM-2 window vectors, atom-to-residue cross-attention, a pIC50-weighted Smooth L1 plus pairwise ranking loss, and five-seed ensemble predictions with target-group conformal intervals. It reads the versioned `data/recovered_baseline_v1/` mapping and graph datasets; it does not change the v4.2 model or its checkpoints.
+
+Run these commands from PowerShell after the versioned graph build is complete. ESM generation may take substantial time and storage; it uses the `fair-esm` dependency and the frozen ESM-2 150M weights. Generated representations, checkpoints, and evaluation reports are kept in separate versioned/output directories.
+
+```powershell
+$py = 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\.venv\Scripts\python.exe'
+& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\generate_esm_residue_embeddings_v1.py' --device cuda
+& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\train_enhancements_v1.py' --device cuda
+& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\evaluate_enhancements_v1.py' --device cuda
+```
+
+Use `--device cpu` when CUDA is unavailable, understanding that ESM generation and full-dataset training can be very slow. The training script reserves 15% of the train-fit targets for validation, fixed across the default ensemble seeds 42–46. Evaluation calibrates a 90% interval using the separate target-grouped calibration graphs and reports observed coverage on each cold-start split; target-group calibration does not guarantee coverage under cold-target distribution shift. Each script refuses to overwrite a nonempty output directory. Review available options with `--help` before running.
+
+These scripts do not implement the separate high-potency extrapolation analyses in Section 5 or the docking/structural validation in Section 6.
+
+---
+
 ## Project file guide
 
 This section describes every project file currently present in the repository's working tree, grouped by folder. It includes locally generated data, checkpoints, reports, and tests as well as source files. The `.git/` folder and the contents of `.venv/`, `venv/`, and `__pycache__/` are excluded: they are Git internals, installed third-party packages, or generated Python bytecode rather than project-authored files.
@@ -135,6 +154,12 @@ Scripts implementing data preparation, model training, and evaluation. The curre
 | `metrics_v4.py` | Implements the concordance-index metric used alongside regression metrics. |
 | `train_v4_2.py` | Main current training entry point: prepares/caches ESM embeddings, creates target-held-out validation, trains with weighted loss and warmup/cosine schedule, early-stops, and saves checkpoints. |
 | `evaluate_v4_2.py` | Evaluates the selected v4_2 checkpoint on cold-drug, cold-target, and cold-pair datasets; writes reports, metrics, and prediction arrays. |
+| `model_enhancements_v1.py` | Defines the separate Section 4 model, sliding-window pooling, atom–residue cross-attention, ranking-regression loss, tensor store, and target-group conformal helper. |
+| `generate_esm_residue_embeddings_v1.py` | Generates isolated frozen ESM-2 window and per-residue representations for `recovered_baseline_v1`. |
+| `train_enhancements_v1.py` | Trains the target-held-out five-seed Section 4 ensemble without changing v4.2 checkpoints. |
+| `evaluate_enhancements_v1.py` | Calibrates target-group conformal intervals and evaluates the ensemble on the three cold-start splits. |
+| `build_recovered_graphs_v4_2.py` | Builds the versioned recovered graph datasets in isolated output paths without overwriting existing graph artifacts. |
+| `validate_recovered_dataset.py` | Validates recovered split CSVs and target mapping/sequence pairs from files or ZIP members without modifying inputs. |
 | `build_target_sequences.py` | Historical target mapping/sequence and embedding preparation utility. Inspect its settings before reuse; it contains environment-specific and notebook-oriented code. |
 | `train_v2.py` | Historical v2 training implementation retained for reference/reproduction. |
 | `train_v3.py` | Historical v3 training implementation using its live/task-adapted ESM pipeline. |
@@ -154,6 +179,8 @@ Automated tests for core behaviors and regression protection.
 | `test_model_v3.py` | Historical v3 target encoder behavior and graph-model forward/backward behavior. |
 | `test_evaluate_v4_report.py` | v4 report/bin metric calculations and report-writing behavior. |
 | `test_evaluate_train_sample_v3.py` | Historical v3 training-sample diagnostic sampling and stable graph-record identifiers. |
+| `test_model_enhancements_v1.py` | Section 4 windowing, attention, model gradients, ranking-regression loss, safe embedding store, and conformal calibration. |
+| `test_validate_recovered_dataset.py` | Recovered dataset validator behavior for filesystem inputs and ZIP archive members. |
 
 ### `results/`
 
