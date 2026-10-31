@@ -1,6 +1,12 @@
+import sys
 import unittest
+from pathlib import Path
 
-from scripts.extend_target_index_v4_2 import extend_target_index
+OLDER_DIR = Path(__file__).resolve().parents[1] / "scripts" / "Older versions"
+if str(OLDER_DIR) not in sys.path:
+    sys.path.insert(0, str(OLDER_DIR))
+
+from extend_target_index_v4_2 import extend_target_index
 
 
 class ExtendTargetIndexTests(unittest.TestCase):

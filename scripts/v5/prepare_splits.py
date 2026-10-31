@@ -9,7 +9,9 @@ from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
 
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 DEFAULT_INPUT = os.path.join(DATA_DIR, "BindingDB_final_clean.csv")
 DEFAULT_OUTPUT_DIR = os.path.join(DATA_DIR, "splits")

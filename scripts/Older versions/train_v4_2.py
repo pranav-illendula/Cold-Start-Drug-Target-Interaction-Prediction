@@ -38,7 +38,9 @@ from model_v4_2 import (
 
 
 # Resolve project folders and output paths relative to this script.
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints", "version4_gine")
 LOG_PATH = os.path.join(PROJECT_DIR, "train_v4.log")

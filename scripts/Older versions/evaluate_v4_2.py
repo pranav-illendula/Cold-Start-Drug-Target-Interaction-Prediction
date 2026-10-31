@@ -21,13 +21,15 @@ from model_v4_2 import (
 )
 
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 EVALUATION_DIR = os.path.join(PROJECT_DIR, "evaluation")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints", "version4_gine")
 OUTPUT_DIR = os.path.join(EVALUATION_DIR, "v4_results")
-REPORT_DIR = os.path.join(PROJECT_DIR, "results", "version3")
-REPORT_PATH = os.path.join(REPORT_DIR, "evaluation_report_v4.txt")
+REPORT_DIR = os.path.join(PROJECT_DIR, "results", "version4")
+REPORT_PATH = os.path.join(REPORT_DIR, "evaluation_report_v4_gine.txt")
 CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, "dti_model_v4_gine_best.pt")
 CACHE_PATH = os.path.join(DATA_DIR, "esm2_t30_150M_cls_mean_embeddings.pt")
 BATCH_SIZE = 64

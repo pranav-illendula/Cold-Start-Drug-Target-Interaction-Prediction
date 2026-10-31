@@ -79,15 +79,15 @@ def parse_args(argv=None):
     parser.add_argument("--calibration-csv", default=str(DEFAULT_CALIBRATION))
     parser.add_argument(
         "--cold-drug-csv",
-        default=r"E:\Downloads\split_cold_drug_with_uniprot.csv",
+        required=True,
     )
     parser.add_argument(
         "--cold-target-csv",
-        default=r"E:\Downloads\split_cold_target_with_uniprot.csv",
+        required=True,
     )
     parser.add_argument(
         "--cold-pair-csv",
-        default=r"E:\Downloads\split_cold_pair_with_uniprot.csv",
+        required=True,
     )
     parser.add_argument("--target-to-idx", default=str(DEFAULT_TARGET_MAP))
     parser.add_argument(

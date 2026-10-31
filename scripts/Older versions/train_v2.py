@@ -1,7 +1,4 @@
-git add -A
-git status --short
-git diff --cached --check
-git diff --cached --stat\"""
+"""
 DTI-GNN V3 training script — optimized for an unattended overnight run.
 
 Key fixes vs. the notebook version:
@@ -43,10 +40,12 @@ import esm
 # ============================================================
 # Paths (matches your local folder layout)
 # ============================================================
-PROJECT_DIR = r"C:\DTI_GNN"
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
-CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
-LOG_PATH = os.path.join(PROJECT_DIR, "train_v3.log")
+CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints", "version2")
+LOG_PATH = os.path.join(PROJECT_DIR, "train_v2.log")
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # ============================================================

@@ -1,4 +1,10 @@
+import sys
 import unittest
+from pathlib import Path
+
+OLDER_DIR = Path(__file__).resolve().parents[1] / "scripts" / "Older versions"
+if str(OLDER_DIR) not in sys.path:
+    sys.path.insert(0, str(OLDER_DIR))
 
 import torch
 from torch_geometric.data import Batch, Data

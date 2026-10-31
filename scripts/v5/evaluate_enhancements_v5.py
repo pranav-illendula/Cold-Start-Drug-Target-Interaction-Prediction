@@ -31,7 +31,7 @@ VERSION_DIR = PROJECT_DIR / "data" / "recovered_baseline_v1"
 GRAPH_DIR = VERSION_DIR / "graphs"
 CHECKPOINT_DIR = PROJECT_DIR / "checkpoints" / "version5"
 EMBEDDING_DIR = VERSION_DIR / "esm2"
-DEFAULT_OUTPUT_DIR = PROJECT_DIR / "evaluation" / "section4_v1"
+DEFAULT_OUTPUT_DIR = PROJECT_DIR / "evaluation" / "section4_v5"
 SEEDS = (42, 43, 44, 45, 46)
 COVERAGE = 0.90
 

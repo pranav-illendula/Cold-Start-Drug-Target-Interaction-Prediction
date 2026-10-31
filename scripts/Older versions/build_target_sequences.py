@@ -103,7 +103,7 @@ with open('data/splits/uniprot_sequence_cache.pkl', 'wb') as f:
     pickle.dump(sequence_cache, f)
 print("Saved sequence cache to Drive")
 
-!pip install fair-esm -q
+# !pip install fair-esm -q
 
 import torch
 import esm

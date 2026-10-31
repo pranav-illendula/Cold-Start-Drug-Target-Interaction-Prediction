@@ -1,4 +1,4 @@
-\"""
+"""
 DTI-GNN V3 training script — optimized for an unattended overnight run.
 
 Key fixes vs. the notebook version:
@@ -40,7 +40,9 @@ import esm
 # ============================================================
 # Paths (matches your local folder layout)
 # ============================================================
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints", "version3")
 LOG_PATH = os.path.join(PROJECT_DIR, "train_v3.log")

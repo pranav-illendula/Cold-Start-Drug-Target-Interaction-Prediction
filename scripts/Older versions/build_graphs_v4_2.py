@@ -14,7 +14,9 @@ from torch_geometric.data import Data
 from bond_features_v4_2 import BOND_FEATURE_DIM, molecule_bond_features
 
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 SPLIT_DIR = os.path.join(DATA_DIR, "splits")
 EVALUATION_DIR = os.path.join(PROJECT_DIR, "evaluation")
@@ -106,9 +108,8 @@ def target_index(row, target_column, target_id_column, direct_ids, name_to_idx):
             return direct_ids[target_id]
         raise ValueError(
             f"UniProt target identifier {target_id!r} is not in "
-            "data/target_to_idx.pkl. Run scripts/extend_target_index.py with "
-            "the same four split CSVs first so the target index and protein "
-            "sequence list are extended together."
+            "data/target_to_idx.pkl. Extend target_to_idx.pkl and the aligned "
+            "target_sequences.pkl with this UniProt ID before graph construction."
         )
 
     target_name = str(row[target_column]).strip()

@@ -1,12 +1,7 @@
 # ============================================================
 # DTI-GNN V3 - Cold-Start Evaluation
 #
-# IMPORTANT:
-# Cold-start datasets are loaded from:
-#     C:\DTI_GNN\data
-#
-# NOT from:
-#     C:\DTI_GNN\evaluation
+# The project root and data paths are resolved relative to this script.
 #
 # This version also performs a pIC50 sanity check before
 # loading ESM-2 so raw nM affinity values are detected early.
@@ -26,8 +21,7 @@
 #   - Per-pIC50-bin accuracy
 #   - Same-bin prediction accuracy
 #
-# Output:
-# C:\DTI_GNN\evaluation\v3_results
+# Output: evaluation/v3_results under the project root.
 # ============================================================
 
 
@@ -51,7 +45,9 @@ from model_v3 import ARCHITECTURE_VERSION, DTIModelV3
 # PATHS
 # ============================================================
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 DATA_DIR = os.path.join(
     PROJECT_DIR,
