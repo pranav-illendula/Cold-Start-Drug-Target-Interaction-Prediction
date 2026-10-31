@@ -13,12 +13,14 @@ import numpy as np
 import torch
 
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = PROJECT_DIR / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+V5_SCRIPTS_DIR = Path(__file__).resolve().parent
+for scripts_dir in (SCRIPTS_DIR, V5_SCRIPTS_DIR):
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
 
-from model_enhancements_v1 import (  # noqa: E402
+from model_enhancements_v5 import (  # noqa: E402
     DTIEnhancementModel,
     TargetEmbeddingStore,
     build_pic50_bin_weights,
@@ -30,7 +32,7 @@ from model_enhancements_v1 import (  # noqa: E402
 VERSION_DIR = PROJECT_DIR / "data" / "recovered_baseline_v1"
 GRAPH_DIR = VERSION_DIR / "graphs"
 ESM_DIR = VERSION_DIR / "esm2"
-DEFAULT_OUTPUT_DIR = VERSION_DIR / "ensemble"
+DEFAULT_OUTPUT_DIR = PROJECT_DIR / "checkpoints" / "version5"
 SEEDS = (42, 43, 44, 45, 46)
 VALIDATION_SEED = 31415
 VALIDATION_FRACTION = 0.15
@@ -138,13 +140,23 @@ def _predict(model, loader, embedding_store, device, label_mean, label_std):
                 graphs,
                 embedding_store,
             )
-            prediction = model(
-                batch.to(device),
-                windows.to(device),
-                window_mask.to(device),
-                residues.to(device),
-                residue_mask.to(device),
-            )
+            batch = batch.to(device)
+            windows = windows.to(device)
+            window_mask = window_mask.to(device)
+            residues = residues.to(device)
+            residue_mask = residue_mask.to(device)
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.float16,
+                enabled=device.type == "cuda",
+            ):
+                prediction = model(
+                    batch,
+                    windows,
+                    window_mask,
+                    residues,
+                    residue_mask,
+                )
             predictions.append(
                 (prediction.float() * label_std + label_mean).cpu().numpy()
             )
@@ -178,6 +190,7 @@ def _train_seed(
         lr=args.learning_rate,
         weight_decay=args.weight_decay,
     )
+    scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
     best_mae = float("inf")
     stale_epochs = 0
     best_path = output_dir / f"seed_{seed}_best.pt"
@@ -202,14 +215,19 @@ def _train_seed(
             residue_mask = residue_mask.to(device)
             targets = batch.y.reshape(-1).float()
             optimizer.zero_grad(set_to_none=True)
-            normalized_predictions = model(
-                batch,
-                windows,
-                window_mask,
-                residues,
-                residue_mask,
-            )
-            predictions = normalized_predictions * label_std + label_mean
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.float16,
+                enabled=device.type == "cuda",
+            ):
+                normalized_predictions = model(
+                    batch,
+                    windows,
+                    window_mask,
+                    residues,
+                    residue_mask,
+                )
+            predictions = normalized_predictions.float() * label_std + label_mean
             loss, _ = hybrid_ranking_regression_loss(
                 predictions,
                 targets,
@@ -217,9 +235,11 @@ def _train_seed(
                 ranking_weight=args.ranking_weight,
                 ranking_margin=args.ranking_margin,
             )
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             losses.append(float(loss.detach().cpu()))
 
         validation_loader = torch.utils.data.DataLoader(

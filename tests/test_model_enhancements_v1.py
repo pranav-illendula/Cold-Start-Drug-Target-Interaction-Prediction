@@ -1,4 +1,5 @@
 import json
+import csv
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,9 +8,10 @@ import numpy as np
 import torch
 from torch_geometric.data import Batch, Data
 
-from scripts.generate_esm_residue_embeddings_v1 import sequence_windows
-from scripts.evaluate_enhancements_v1 import _validate_calibration_split
-from scripts.model_enhancements_v1 import (
+from scripts.v5.generate_esm_residue_embeddings_v5 import sequence_windows
+from scripts.v5.evaluate_enhancements_v5 import _validate_calibration_split
+from scripts.v5.write_enhancement_report_v5 import build_report
+from scripts.v5.model_enhancements_v5 import (
     AtomResidueCrossAttention,
     DTIEnhancementModel,
     TargetEmbeddingStore,
@@ -22,6 +24,82 @@ from scripts.model_enhancements_v1 import (
 
 
 class EnhancementModelTests(unittest.TestCase):
+    def test_text_report_formats_ensemble_metrics_and_prediction_bins(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evaluation_dir = root / "evaluation"
+            checkpoint_dir = root / "checkpoints"
+            evaluation_dir.mkdir()
+            checkpoint_dir.mkdir()
+            seeds = [42]
+            (evaluation_dir / "summary.json").write_text(
+                json.dumps(
+                    {
+                        "experiment": "section4_enhancements_v1",
+                        "ensemble_seeds": seeds,
+                        "coverage": 0.9,
+                        "calibration_target_count": 2,
+                        "conformal_scale_quantile": 1.25,
+                        "splits": {
+                            split: {
+                                "samples": 4,
+                                "target_group_interval_coverage": 0.5,
+                            }
+                            for split in ("cold_drug", "cold_pair", "cold_target")
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (checkpoint_dir / "training_protocol.json").write_text(
+                json.dumps(
+                    {
+                        "experiment": "section4_enhancements_v1",
+                        "seeds": seeds,
+                        "results": [
+                            {"seed": 42, "best_validation_mae": 0.75}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            for split in ("cold_drug", "cold_pair", "cold_target"):
+                with (evaluation_dir / f"{split}_predictions.csv").open(
+                    "w",
+                    newline="",
+                    encoding="utf-8",
+                ) as destination:
+                    writer = csv.DictWriter(
+                        destination,
+                        fieldnames=[
+                            "pIC50_true",
+                            "ensemble_mean",
+                            "interval_lower",
+                            "interval_upper",
+                        ],
+                    )
+                    writer.writeheader()
+                    for target, prediction in zip(
+                        (3.1, 3.8, 4.6, 5.2),
+                        (3.2, 4.0, 4.8, 5.0),
+                    ):
+                        writer.writerow(
+                            {
+                                "pIC50_true": target,
+                                "ensemble_mean": prediction,
+                                "interval_lower": prediction - 0.5,
+                                "interval_upper": prediction + 0.5,
+                            }
+                        )
+
+            report = build_report(evaluation_dir, checkpoint_dir, "cuda")
+
+        self.assertIn("GLOBAL RESULTS", report)
+        self.assertIn("PER-pIC50-BIN RESULTS", report)
+        self.assertIn("Concordance index", report)
+        self.assertIn("PI Cover", report)
+        self.assertIn("Seed 42: 0.750000", report)
+
     def test_calibration_targets_must_be_disjoint_from_training_and_validation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

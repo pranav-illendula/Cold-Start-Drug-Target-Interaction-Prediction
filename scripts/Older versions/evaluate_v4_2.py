@@ -24,7 +24,7 @@ from model_v4_2 import (
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 EVALUATION_DIR = os.path.join(PROJECT_DIR, "evaluation")
-CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
+CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints", "version4_gine")
 OUTPUT_DIR = os.path.join(EVALUATION_DIR, "v4_results")
 REPORT_DIR = os.path.join(PROJECT_DIR, "results", "version3")
 REPORT_PATH = os.path.join(REPORT_DIR, "evaluation_report_v4.txt")

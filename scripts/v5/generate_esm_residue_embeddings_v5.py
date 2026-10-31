@@ -21,7 +21,7 @@ WINDOW_STRIDE = 512
 WINDOW_DIM = 1280
 RESIDUE_DIM = 640
 VERSION_DIR = (
-    Path(__file__).resolve().parents[1] / "data" / "recovered_baseline_v1"
+    Path(__file__).resolve().parents[2] / "data" / "recovered_baseline_v1"
 )
 
 

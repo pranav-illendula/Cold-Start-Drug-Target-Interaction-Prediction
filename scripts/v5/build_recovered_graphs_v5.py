@@ -12,12 +12,12 @@ from pathlib import Path
 import torch
 
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_DIR / "scripts"
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from build_graphs_v4_2 import (  # noqa: E402
+from build_graphs_v5 import (  # noqa: E402
     ATOM_FEATURE_DIM,
     BOND_FEATURE_DIM,
     build_split,

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 
-from scripts.validate_recovered_dataset import main
+from scripts.v5.validate_recovered_dataset_v5 import main
 
 
 class ValidateRecoveredDatasetTests(unittest.TestCase):

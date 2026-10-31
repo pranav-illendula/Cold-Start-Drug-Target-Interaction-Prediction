@@ -12,12 +12,14 @@ from scipy.stats import pearsonr
 from torch_geometric.data import Data
 
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = PROJECT_DIR / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+V5_SCRIPTS_DIR = Path(__file__).resolve().parent
+for scripts_dir in (SCRIPTS_DIR, V5_SCRIPTS_DIR):
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
 
-from model_enhancements_v1 import (  # noqa: E402
+from model_enhancements_v5 import (  # noqa: E402
     DTIEnhancementModel,
     TargetEmbeddingStore,
     collate_graphs,
@@ -27,7 +29,7 @@ from model_enhancements_v1 import (  # noqa: E402
 
 VERSION_DIR = PROJECT_DIR / "data" / "recovered_baseline_v1"
 GRAPH_DIR = VERSION_DIR / "graphs"
-CHECKPOINT_DIR = VERSION_DIR / "ensemble"
+CHECKPOINT_DIR = PROJECT_DIR / "checkpoints" / "version5"
 EMBEDDING_DIR = VERSION_DIR / "esm2"
 DEFAULT_OUTPUT_DIR = PROJECT_DIR / "evaluation" / "section4_v1"
 SEEDS = (42, 43, 44, 45, 46)

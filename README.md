@@ -65,18 +65,29 @@ The model is optimized with AdamW (learning rate `5e-5`, weight decay `1e-4`), 1
 
 The Section 4 experiment is implemented separately from the v4.2 baseline. It adds learned attention over frozen ESM-2 window vectors, atom-to-residue cross-attention, a pIC50-weighted Smooth L1 plus pairwise ranking loss, and five-seed ensemble predictions with target-group conformal intervals. It reads the versioned `data/recovered_baseline_v1/` mapping and graph datasets; it does not change the v4.2 model or its checkpoints.
 
-Run these commands from PowerShell after the versioned graph build is complete. ESM generation may take substantial time and storage; it uses the `fair-esm` dependency and the frozen ESM-2 150M weights. Generated representations, checkpoints, and evaluation reports are kept in separate versioned/output directories.
+The reproducible Section 4 implementation and its standalone usage guide are in [`scripts/v5/`](scripts/v5/README.md). Run the following from the repository root in PowerShell after placing the recovered inputs under `data/recovered_baseline_v1/`. ESM generation may take substantial time and storage; it uses the `fair-esm` dependency and frozen ESM-2 150M weights.
 
 ```powershell
-$py = 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\.venv\Scripts\python.exe'
-& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\generate_esm_residue_embeddings_v1.py' --device cuda
-& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\train_enhancements_v1.py' --device cuda
-& $py 'C:\Users\dell\Cold-Start-Drug-Target-Interaction-Prediction\scripts\evaluate_enhancements_v1.py' --device cuda
+$py = (Resolve-Path '.venv\Scripts\python.exe').Path
+$root = (Get-Location).Path
+$data = Join-Path $root 'data\recovered_baseline_v1'
+$checkpointRun = Join-Path $root 'checkpoints\version5_run'
+$evaluationRun = Join-Path $root 'evaluation\section4_run'
+& $py (Join-Path $root 'scripts\v5\generate_esm_residue_embeddings_v5.py') --device cuda
+& $py (Join-Path $root 'scripts\v5\train_enhancements_v5.py') --train-graphs (Join-Path $data 'graphs\train_fit_data_v4.pt') --embedding-dir (Join-Path $data 'esm2') --output-dir $checkpointRun --device cuda
+& $py (Join-Path $root 'scripts\v5\evaluate_enhancements_v5.py') --checkpoint-dir $checkpointRun --embedding-dir (Join-Path $data 'esm2') --output-dir $evaluationRun --device cuda
+& $py (Join-Path $root 'scripts\v5\write_enhancement_report_v5.py') --evaluation-dir $evaluationRun --checkpoint-dir $checkpointRun --output (Join-Path $root 'results\version5\evaluation_report_section4.txt') --device cuda
 ```
 
 Use `--device cpu` when CUDA is unavailable, understanding that ESM generation and full-dataset training can be very slow. The training script reserves 15% of the train-fit targets for validation, fixed across the default ensemble seeds 42–46. Evaluation calibrates a 90% interval using the separate target-grouped calibration graphs and reports observed coverage on each cold-start split; target-group calibration does not guarantee coverage under cold-target distribution shift. Each script refuses to overwrite a nonempty output directory. Review available options with `--help` before running.
 
 These scripts do not implement the separate high-potency extrapolation analyses in Section 5 or the docking/structural validation in Section 6.
+
+The Section 4 trainer automatically uses CUDA FP16 autocast and gradient scaling when run on a CUDA device; CPU training remains full precision. For faster graph pooling, install the optional `torch-scatter` wheel matching the installed PyTorch, CUDA, and Python versions. For the current Windows environment (`torch==2.11.0+cu128`), the matching wheel can be installed with:
+
+```powershell
+python -m pip install --only-binary=:all: torch-scatter -f "https://data.pyg.org/whl/torch-2.11.0+cu128.html"
+```
 
 ---
 
@@ -100,13 +111,15 @@ Saved model weights and training states. A checkpoint must be paired with the co
 | File | Purpose |
 |---|---|
 | `.gitattributes` | Configures Git LFS handling for large `.pt` checkpoint files. |
-| `dti_model_epoch10.pt` | Checkpoint from the original v1 experiment. |
-| `dti_model_v2_final.pt` | Final saved checkpoint from the v2 experiment. |
-| `dti_model_v3_stable_epoch15.pt` | Stable v3 checkpoint after the BatchNorm instability fix. |
-| `dti_model_v4_best.pt` | Best checkpoint from the earlier v4 run, before the current GINE revision. |
-| `dti_model_v4_last.pt` | Most recent training-state checkpoint from that earlier v4 run. |
-| `dti_model_v4_gine_best.pt` | Best validation-MAE checkpoint for the current bond-aware GINE v4.2 architecture. |
-| `dti_model_v4_gine_last.pt` | Last resumable training checkpoint for the current v4.2 run. |
+| `version1/dti_model_epoch10.pt` | Checkpoint from the original v1 experiment. |
+| `version2/dti_model_v2_final.pt` | Final saved checkpoint from the v2 experiment. |
+| `version3/dti_model_v3_stable_epoch15.pt` | Stable v3 checkpoint after the BatchNorm instability fix. |
+| `version4/dti_model_v4_best.pt` | Best checkpoint from the earlier v4 run, before the current GINE revision. |
+| `version4/dti_model_v4_last.pt` | Most recent training-state checkpoint from that earlier v4 run. |
+| `version4_gine/dti_model_v4_gine_best.pt` | Best validation-MAE checkpoint for the current bond-aware GINE v4.2 architecture. |
+| `version4_gine/dti_model_v4_gine_last.pt` | Last resumable training checkpoint for the current v4.2 run. |
+| `version5/seed_42_best.pt` through `seed_46_best.pt` | Best validation checkpoint for each Section 4 ensemble member. |
+| `version5/training_protocol.json` | Target-held-out split, seed validation results, and mapping fingerprint for the Section 4 ensemble. |
 
 ### `data/`
 
@@ -154,12 +167,7 @@ Scripts implementing data preparation, model training, and evaluation. The curre
 | `metrics_v4.py` | Implements the concordance-index metric used alongside regression metrics. |
 | `train_v4_2.py` | Main current training entry point: prepares/caches ESM embeddings, creates target-held-out validation, trains with weighted loss and warmup/cosine schedule, early-stops, and saves checkpoints. |
 | `evaluate_v4_2.py` | Evaluates the selected v4_2 checkpoint on cold-drug, cold-target, and cold-pair datasets; writes reports, metrics, and prediction arrays. |
-| `model_enhancements_v1.py` | Defines the separate Section 4 model, sliding-window pooling, atom–residue cross-attention, ranking-regression loss, tensor store, and target-group conformal helper. |
-| `generate_esm_residue_embeddings_v1.py` | Generates isolated frozen ESM-2 window and per-residue representations for `recovered_baseline_v1`. |
-| `train_enhancements_v1.py` | Trains the target-held-out five-seed Section 4 ensemble without changing v4.2 checkpoints. |
-| `evaluate_enhancements_v1.py` | Calibrates target-group conformal intervals and evaluates the ensemble on the three cold-start splits. |
-| `build_recovered_graphs_v4_2.py` | Builds the versioned recovered graph datasets in isolated output paths without overwriting existing graph artifacts. |
-| `validate_recovered_dataset.py` | Validates recovered split CSVs and target mapping/sequence pairs from files or ZIP members without modifying inputs. |
+| `v5/` | Self-contained Section 4 enhancement and reproduction package; see [`scripts/v5/README.md`](scripts/v5/README.md). It includes copies of the shared v4.2 graph and bond-feature builders. |
 | `build_target_sequences.py` | Historical target mapping/sequence and embedding preparation utility. Inspect its settings before reuse; it contains environment-specific and notebook-oriented code. |
 | `train_v2.py` | Historical v2 training implementation retained for reference/reproduction. |
 | `train_v3.py` | Historical v3 training implementation using its live/task-adapted ESM pipeline. |

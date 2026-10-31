@@ -20,9 +20,9 @@ from torch_geometric.nn import (
 from torch_geometric.utils import to_dense_batch
 
 try:
-    from .bond_features_v4_2 import BOND_FEATURE_DIM
+    from .bond_features_v5 import BOND_FEATURE_DIM
 except ImportError:
-    from bond_features_v4_2 import BOND_FEATURE_DIM
+    from bond_features_v5 import BOND_FEATURE_DIM
 
 
 ATOM_FEATURE_DIM = 18

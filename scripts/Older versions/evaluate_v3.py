@@ -51,7 +51,7 @@ from model_v3 import ARCHITECTURE_VERSION, DTIModelV3
 # PATHS
 # ============================================================
 
-PROJECT_DIR = r"C:\DTI_GNN"
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATA_DIR = os.path.join(
     PROJECT_DIR,
@@ -65,7 +65,8 @@ EVAL_DIR = os.path.join(
 
 CHECKPOINT_DIR = os.path.join(
     PROJECT_DIR,
-    "checkpoints"
+    "checkpoints",
+    "version3",
 )
 
 OUTPUT_DIR = os.path.join(
