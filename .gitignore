@@ -12,8 +12,13 @@ __pycache__/
 # Data (large, download/regenerate instead)
 data/*
 !data/README.md
+!data/bindingdb/target_annotations_bindingdb.csv
+!data/bindingdb/target_annotations_bindingdb.parquet
+!data/bindingdb/target_annotations_lookup.pkl
 *.csv
+!data/bindingdb/target_annotations_bindingdb.csv
 *.pkl
+!data/bindingdb/target_annotations_lookup.pkl
 
 # Model weights and checkpoints
 #checkpoints/
