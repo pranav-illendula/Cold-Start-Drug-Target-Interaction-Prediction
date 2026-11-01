@@ -1,0 +1,29 @@
+dimension,stratum,target_count,samples,mae,rmse,mse,pearson_r,ci,r2,accuracy_0_5,accuracy_1_0,accuracy_1_5
+Disease Category,Oncology,22,5161,1.2626,1.5837,2.5081,0.3466,0.6141,-0.2605,24.84,47.49,65.65
+Disease Category,Neurology & CNS,71,24205,1.2773,1.6001,2.5602,0.363,0.628,-0.2311,24.64,46.59,64.98
+Disease Category,Cardiovascular,12,2640,1.2599,1.5763,2.4848,0.3567,0.6169,-0.2149,25.04,47.27,66.25
+Disease Category,Immunology & Inflammation,53,14673,1.2348,1.5403,2.3725,0.3952,0.6226,-0.1324,24.64,48.12,66.69
+Disease Category,Infectious Disease,6,823,1.2613,1.5737,2.4764,0.3607,0.6171,-0.222,24.67,46.42,66.1
+Disease Category,Metabolic & Endocrine,13,2107,1.1714,1.4593,2.1297,0.423,0.6406,-0.0583,26.58,50.26,68.72
+Disease Category,Respiratory & Pulmonary,5,1785,1.2135,1.5149,2.2949,0.4192,0.639,-0.0735,25.99,48.29,66.72
+Disease Category,Dermatological & Sensory,8,1796,1.2382,1.5518,2.408,0.3731,0.6233,-0.1359,25.56,47.22,66.82
+Disease Category,Unassigned / Non-Pathological Probe,211,70254,1.26,1.5781,2.4903,0.3682,0.6278,-0.2097,24.69,47.35,65.83
+Molecular Class,Protein Kinase,73,18202,1.164,1.4509,2.1051,0.4432,0.6401,-0.0008,26.23,50.43,69.51
+Molecular Class,G-Protein Coupled Receptor (GPCR),27,8709,1.2288,1.5406,2.3734,0.3821,0.6188,-0.1503,25.23,48.38,67.34
+Molecular Class,Ion Channel,17,5779,1.368,1.7037,2.9028,0.3144,0.601,-0.4256,22.24,43.71,61.65
+Molecular Class,Nuclear Receptor,5,748,1.1666,1.4493,2.1004,0.3982,0.6282,-0.0756,26.34,48.53,69.52
+Molecular Class,Protease / Hydrolase,83,24472,1.2011,1.501,2.253,0.4068,0.63,-0.0872,25.82,49.19,68.0
+Molecular Class,Phosphatase,15,3527,1.2811,1.6051,2.5762,0.3501,0.615,-0.2584,24.67,46.53,65.27
+Molecular Class,Transporter / Solute Carrier,10,9527,1.3278,1.661,2.7591,0.3303,0.6108,-0.3433,23.63,44.88,63.2
+Molecular Class,Epigenetic Regulator,23,7899,1.3944,1.7413,3.0321,0.2865,0.5907,-0.4876,22.19,42.97,61.06
+Molecular Class,Other Enzyme / Protein,148,44581,1.2797,1.6019,2.5661,0.3575,0.6187,-0.2458,24.47,46.7,64.81
+Organ System,Central & Peripheral Nervous System,117,42176,1.2478,1.5655,2.4508,0.3777,0.6168,-0.1843,25.22,47.75,66.33
+Organ System,Cardiovascular System,7,1968,1.2109,1.5264,2.3298,0.3621,0.6154,-0.1942,26.52,48.48,67.94
+Organ System,Respiratory System,3,1218,1.2301,1.5324,2.3483,0.4031,0.6332,-0.1405,25.29,47.7,66.42
+Organ System,Digestive & Hepatobiliary System,24,5098,1.2383,1.5573,2.4252,0.3856,0.6283,-0.1722,25.7,48.88,66.54
+Organ System,Endocrine & Metabolic Organs,7,6721,1.3192,1.6535,2.7341,0.3303,0.6066,-0.3405,23.61,45.38,63.43
+Organ System,Immune & Hematopoietic System,42,7762,1.2349,1.5397,2.3707,0.3811,0.6259,-0.1826,24.88,48.11,66.31
+Organ System,Musculoskeletal System,1,157,1.1851,1.4595,2.1302,0.451,0.653,-0.0419,22.29,47.13,70.7
+Organ System,Renal & Urogenital System,2,725,1.2362,1.5335,2.3517,0.4036,0.6352,-0.0685,24.55,48.83,66.34
+Organ System,Integumentary System,3,205,1.2121,1.5284,2.336,0.3995,0.6403,-0.2577,29.76,48.29,66.83
+Organ System,Ubiquitous / Systemic,195,57414,1.2661,1.5821,2.5032,0.3671,0.6198,-0.2061,24.36,46.99,65.54
