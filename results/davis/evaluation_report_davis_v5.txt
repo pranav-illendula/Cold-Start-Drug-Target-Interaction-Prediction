@@ -1,0 +1,74 @@
+DTI-GNN SECTION 4 ENHANCEMENT EVALUATION REPORT (DAVIS BENCHMARK)
+==========================================================================================
+
+Architecture: Sliding-window ESM-2, Residual GINE, atom-to-residue cross-attention
+Ensemble seeds: 42, 43, 44, 45, 46
+Device: cuda
+GPU: NVIDIA RTX 2000 Ada Generation
+Target-group conformal coverage: 90.0%
+Calibration target groups: 50
+Conformal scale quantile: 14.8214
+
+BEST VALIDATION MSE BY SEED
+------------------------------------------------------------
+Seed 42: 0.3681
+Seed 43: 0.3712
+Seed 44: 0.3645
+Seed 45: 0.3701
+Seed 46: 0.3628
+
+==========================================================================================
+GLOBAL RESULTS
+==========================================================================================
+
+WARM-START
+------------------------------------------------------------
+Samples       : 6011
+RMSE          : 0.4485
+MSE           : 0.2012
+MAE           : 0.3012
+Pearson r     : 0.9082
+Concordance index: 0.9114
+R²            : 0.7991
+Acc @ ±0.5    : 86.42%
+Acc @ ±1.0    : 97.24%
+Row interval coverage: 99.42%
+
+COLD-DRUG
+------------------------------------------------------------
+Samples       : 4602
+RMSE          : 0.6723
+MSE           : 0.4520
+MAE           : 0.4852
+Pearson r     : 0.6554
+Concordance index: 0.7912
+R²            : 0.3541
+Acc @ ±0.5    : 71.24%
+Acc @ ±1.0    : 91.82%
+Row interval coverage: 99.12%
+
+COLD-PAIR
+------------------------------------------------------------
+Samples       : 1144
+RMSE          : 0.6618
+MSE           : 0.4380
+MAE           : 0.4781
+Pearson r     : 0.8921
+Concordance index: 0.9312
+R²            : 0.5188
+Acc @ ±0.5    : 72.41%
+Acc @ ±1.0    : 91.70%
+Row interval coverage: 99.25%
+
+COLD-TARGET
+------------------------------------------------------------
+Samples       : 4840
+RMSE          : 0.6124
+MSE           : 0.3750
+MAE           : 0.4321
+Pearson r     : 0.8021
+Concordance index: 0.8742
+R²            : 0.6162
+Acc @ ±0.5    : 75.62%
+Acc @ ±1.0    : 93.41%
+Row interval coverage: 99.30%
