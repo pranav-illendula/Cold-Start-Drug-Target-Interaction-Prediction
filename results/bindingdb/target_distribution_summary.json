@@ -1,0 +1,560 @@
+{
+  "total_targets": 2671,
+  "disease_stats": [
+    {
+      "category": "Oncology",
+      "count": 142,
+      "percentage": 5.32
+    },
+    {
+      "category": "Neurology & CNS",
+      "count": 448,
+      "percentage": 16.77
+    },
+    {
+      "category": "Cardiovascular",
+      "count": 123,
+      "percentage": 4.61
+    },
+    {
+      "category": "Immunology & Inflammation",
+      "count": 372,
+      "percentage": 13.93
+    },
+    {
+      "category": "Infectious Disease",
+      "count": 24,
+      "percentage": 0.9
+    },
+    {
+      "category": "Metabolic & Endocrine",
+      "count": 79,
+      "percentage": 2.96
+    },
+    {
+      "category": "Respiratory & Pulmonary",
+      "count": 18,
+      "percentage": 0.67
+    },
+    {
+      "category": "Dermatological & Sensory",
+      "count": 67,
+      "percentage": 2.51
+    },
+    {
+      "category": "Unassigned / Non-Pathological Probe",
+      "count": 1398,
+      "percentage": 52.34
+    }
+  ],
+  "disease_diversity": {
+    "num_classes": 9,
+    "total_items": 2671,
+    "shannon_entropy": 1.4832,
+    "evenness_pielou": 0.675,
+    "simpson_dominance": 0.3281,
+    "gini_simpson_diversity": 0.6719,
+    "imbalance_ratio": 77.67
+  },
+  "organ_stats": [
+    {
+      "organ_system": "Central & Peripheral Nervous System",
+      "count": 742,
+      "percentage": 27.78
+    },
+    {
+      "organ_system": "Cardiovascular System",
+      "count": 82,
+      "percentage": 3.07
+    },
+    {
+      "organ_system": "Respiratory System",
+      "count": 8,
+      "percentage": 0.3
+    },
+    {
+      "organ_system": "Digestive & Hepatobiliary System",
+      "count": 194,
+      "percentage": 7.26
+    },
+    {
+      "organ_system": "Endocrine & Metabolic Organs",
+      "count": 57,
+      "percentage": 2.13
+    },
+    {
+      "organ_system": "Immune & Hematopoietic System",
+      "count": 265,
+      "percentage": 9.92
+    },
+    {
+      "organ_system": "Musculoskeletal System",
+      "count": 22,
+      "percentage": 0.82
+    },
+    {
+      "organ_system": "Renal & Urogenital System",
+      "count": 35,
+      "percentage": 1.31
+    },
+    {
+      "organ_system": "Integumentary System",
+      "count": 13,
+      "percentage": 0.49
+    },
+    {
+      "organ_system": "Ubiquitous / Systemic",
+      "count": 1253,
+      "percentage": 46.91
+    }
+  ],
+  "organ_diversity": {
+    "num_classes": 10,
+    "total_items": 2671,
+    "shannon_entropy": 1.4593,
+    "evenness_pielou": 0.6338,
+    "simpson_dominance": 0.314,
+    "gini_simpson_diversity": 0.686,
+    "imbalance_ratio": 156.62
+  },
+  "mol_stats": [
+    {
+      "molecular_class": "Protein Kinase",
+      "count": 482,
+      "percentage": 18.05
+    },
+    {
+      "molecular_class": "G-Protein Coupled Receptor (GPCR)",
+      "count": 216,
+      "percentage": 8.09
+    },
+    {
+      "molecular_class": "Ion Channel",
+      "count": 132,
+      "percentage": 4.94
+    },
+    {
+      "molecular_class": "Nuclear Receptor",
+      "count": 42,
+      "percentage": 1.57
+    },
+    {
+      "molecular_class": "Protease / Hydrolase",
+      "count": 496,
+      "percentage": 18.57
+    },
+    {
+      "molecular_class": "Phosphatase",
+      "count": 88,
+      "percentage": 3.29
+    },
+    {
+      "molecular_class": "Transporter / Solute Carrier",
+      "count": 78,
+      "percentage": 2.92
+    },
+    {
+      "molecular_class": "Epigenetic Regulator",
+      "count": 177,
+      "percentage": 6.63
+    },
+    {
+      "molecular_class": "Other Enzyme / Protein",
+      "count": 960,
+      "percentage": 35.94
+    }
+  ],
+  "mol_diversity": {
+    "num_classes": 9,
+    "total_items": 2671,
+    "shannon_entropy": 1.8022,
+    "evenness_pielou": 0.8202,
+    "simpson_dominance": 0.2118,
+    "gini_simpson_diversity": 0.7882,
+    "imbalance_ratio": 22.86
+  },
+  "top_organisms": [
+    {
+      "organism": "Homo sapiens",
+      "count": 2398,
+      "percentage": 89.78
+    },
+    {
+      "organism": "Rattus norvegicus",
+      "count": 133,
+      "percentage": 4.98
+    },
+    {
+      "organism": "Mus musculus",
+      "count": 63,
+      "percentage": 2.36
+    },
+    {
+      "organism": "Bos taurus",
+      "count": 28,
+      "percentage": 1.05
+    },
+    {
+      "organism": "Sus scrofa",
+      "count": 15,
+      "percentage": 0.56
+    },
+    {
+      "organism": "Oryctolagus cuniculus",
+      "count": 8,
+      "percentage": 0.3
+    },
+    {
+      "organism": "Cavia porcellus",
+      "count": 4,
+      "percentage": 0.15
+    },
+    {
+      "organism": "Saccharomyces cerevisiae (strain ATCC 204508 / S288c)",
+      "count": 3,
+      "percentage": 0.11
+    },
+    {
+      "organism": "Ovis aries",
+      "count": 2,
+      "percentage": 0.07
+    },
+    {
+      "organism": "Gallus gallus",
+      "count": 2,
+      "percentage": 0.07
+    }
+  ],
+  "annotation_sources": {
+    "UniProtKB/Swiss-Prot": 2671
+  },
+  "evidence_levels": {
+    "Curated (Literature Supported)": 1884,
+    "Curated (Sequence Rule)": 787
+  },
+  "targets_with_pubmed": 2671,
+  "targets_with_specific_disease": 955,
+  "cross_tab_mol_disease": {
+    "Oncology": {
+      "Protein Kinase": 48,
+      "G-Protein Coupled Receptor (GPCR)": 2,
+      "Ion Channel": 1,
+      "Nuclear Receptor": 5,
+      "Protease / Hydrolase": 21,
+      "Phosphatase": 3,
+      "Transporter / Solute Carrier": 0,
+      "Epigenetic Regulator": 12,
+      "Other Enzyme / Protein": 50
+    },
+    "Neurology & CNS": {
+      "Protein Kinase": 70,
+      "G-Protein Coupled Receptor (GPCR)": 46,
+      "Ion Channel": 68,
+      "Nuclear Receptor": 3,
+      "Protease / Hydrolase": 76,
+      "Phosphatase": 9,
+      "Transporter / Solute Carrier": 18,
+      "Epigenetic Regulator": 30,
+      "Other Enzyme / Protein": 128
+    },
+    "Cardiovascular": {
+      "Protein Kinase": 16,
+      "G-Protein Coupled Receptor (GPCR)": 7,
+      "Ion Channel": 11,
+      "Nuclear Receptor": 5,
+      "Protease / Hydrolase": 27,
+      "Phosphatase": 0,
+      "Transporter / Solute Carrier": 1,
+      "Epigenetic Regulator": 4,
+      "Other Enzyme / Protein": 52
+    },
+    "Immunology & Inflammation": {
+      "Protein Kinase": 47,
+      "G-Protein Coupled Receptor (GPCR)": 59,
+      "Ion Channel": 6,
+      "Nuclear Receptor": 9,
+      "Protease / Hydrolase": 83,
+      "Phosphatase": 5,
+      "Transporter / Solute Carrier": 5,
+      "Epigenetic Regulator": 11,
+      "Other Enzyme / Protein": 147
+    },
+    "Infectious Disease": {
+      "Protein Kinase": 4,
+      "G-Protein Coupled Receptor (GPCR)": 0,
+      "Ion Channel": 1,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 8,
+      "Phosphatase": 0,
+      "Transporter / Solute Carrier": 0,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 11
+    },
+    "Metabolic & Endocrine": {
+      "Protein Kinase": 21,
+      "G-Protein Coupled Receptor (GPCR)": 7,
+      "Ion Channel": 2,
+      "Nuclear Receptor": 4,
+      "Protease / Hydrolase": 11,
+      "Phosphatase": 4,
+      "Transporter / Solute Carrier": 4,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 26
+    },
+    "Respiratory & Pulmonary": {
+      "Protein Kinase": 4,
+      "G-Protein Coupled Receptor (GPCR)": 1,
+      "Ion Channel": 1,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 6,
+      "Phosphatase": 0,
+      "Transporter / Solute Carrier": 1,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 5
+    },
+    "Dermatological & Sensory": {
+      "Protein Kinase": 11,
+      "G-Protein Coupled Receptor (GPCR)": 8,
+      "Ion Channel": 4,
+      "Nuclear Receptor": 3,
+      "Protease / Hydrolase": 14,
+      "Phosphatase": 1,
+      "Transporter / Solute Carrier": 1,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 25
+    },
+    "Unassigned / Non-Pathological Probe": {
+      "Protein Kinase": 261,
+      "G-Protein Coupled Receptor (GPCR)": 86,
+      "Ion Channel": 38,
+      "Nuclear Receptor": 13,
+      "Protease / Hydrolase": 250,
+      "Phosphatase": 66,
+      "Transporter / Solute Carrier": 48,
+      "Epigenetic Regulator": 120,
+      "Other Enzyme / Protein": 516
+    }
+  },
+  "cross_tab_organ_disease": {
+    "Oncology": {
+      "Central & Peripheral Nervous System": 24,
+      "Cardiovascular System": 4,
+      "Respiratory System": 0,
+      "Digestive & Hepatobiliary System": 2,
+      "Endocrine & Metabolic Organs": 3,
+      "Immune & Hematopoietic System": 21,
+      "Musculoskeletal System": 1,
+      "Renal & Urogenital System": 2,
+      "Integumentary System": 2,
+      "Ubiquitous / Systemic": 83
+    },
+    "Neurology & CNS": {
+      "Central & Peripheral Nervous System": 304,
+      "Cardiovascular System": 4,
+      "Respiratory System": 0,
+      "Digestive & Hepatobiliary System": 13,
+      "Endocrine & Metabolic Organs": 3,
+      "Immune & Hematopoietic System": 14,
+      "Musculoskeletal System": 3,
+      "Renal & Urogenital System": 1,
+      "Integumentary System": 2,
+      "Ubiquitous / Systemic": 104
+    },
+    "Cardiovascular": {
+      "Central & Peripheral Nervous System": 25,
+      "Cardiovascular System": 45,
+      "Respiratory System": 1,
+      "Digestive & Hepatobiliary System": 11,
+      "Endocrine & Metabolic Organs": 3,
+      "Immune & Hematopoietic System": 9,
+      "Musculoskeletal System": 1,
+      "Renal & Urogenital System": 2,
+      "Integumentary System": 0,
+      "Ubiquitous / Systemic": 26
+    },
+    "Immunology & Inflammation": {
+      "Central & Peripheral Nervous System": 57,
+      "Cardiovascular System": 7,
+      "Respiratory System": 2,
+      "Digestive & Hepatobiliary System": 23,
+      "Endocrine & Metabolic Organs": 1,
+      "Immune & Hematopoietic System": 107,
+      "Musculoskeletal System": 5,
+      "Renal & Urogenital System": 1,
+      "Integumentary System": 0,
+      "Ubiquitous / Systemic": 169
+    },
+    "Infectious Disease": {
+      "Central & Peripheral Nervous System": 0,
+      "Cardiovascular System": 1,
+      "Respiratory System": 0,
+      "Digestive & Hepatobiliary System": 1,
+      "Endocrine & Metabolic Organs": 0,
+      "Immune & Hematopoietic System": 4,
+      "Musculoskeletal System": 0,
+      "Renal & Urogenital System": 0,
+      "Integumentary System": 0,
+      "Ubiquitous / Systemic": 18
+    },
+    "Metabolic & Endocrine": {
+      "Central & Peripheral Nervous System": 11,
+      "Cardiovascular System": 0,
+      "Respiratory System": 0,
+      "Digestive & Hepatobiliary System": 11,
+      "Endocrine & Metabolic Organs": 4,
+      "Immune & Hematopoietic System": 5,
+      "Musculoskeletal System": 3,
+      "Renal & Urogenital System": 3,
+      "Integumentary System": 1,
+      "Ubiquitous / Systemic": 41
+    },
+    "Respiratory & Pulmonary": {
+      "Central & Peripheral Nervous System": 3,
+      "Cardiovascular System": 0,
+      "Respiratory System": 2,
+      "Digestive & Hepatobiliary System": 6,
+      "Endocrine & Metabolic Organs": 1,
+      "Immune & Hematopoietic System": 1,
+      "Musculoskeletal System": 0,
+      "Renal & Urogenital System": 0,
+      "Integumentary System": 0,
+      "Ubiquitous / Systemic": 5
+    },
+    "Dermatological & Sensory": {
+      "Central & Peripheral Nervous System": 10,
+      "Cardiovascular System": 0,
+      "Respiratory System": 0,
+      "Digestive & Hepatobiliary System": 4,
+      "Endocrine & Metabolic Organs": 1,
+      "Immune & Hematopoietic System": 12,
+      "Musculoskeletal System": 2,
+      "Renal & Urogenital System": 2,
+      "Integumentary System": 3,
+      "Ubiquitous / Systemic": 33
+    },
+    "Unassigned / Non-Pathological Probe": {
+      "Central & Peripheral Nervous System": 308,
+      "Cardiovascular System": 21,
+      "Respiratory System": 3,
+      "Digestive & Hepatobiliary System": 123,
+      "Endocrine & Metabolic Organs": 41,
+      "Immune & Hematopoietic System": 92,
+      "Musculoskeletal System": 7,
+      "Renal & Urogenital System": 24,
+      "Integumentary System": 5,
+      "Ubiquitous / Systemic": 774
+    }
+  },
+  "cross_tab_mol_organ": {
+    "Central & Peripheral Nervous System": {
+      "Protein Kinase": 131,
+      "G-Protein Coupled Receptor (GPCR)": 105,
+      "Ion Channel": 85,
+      "Nuclear Receptor": 9,
+      "Protease / Hydrolase": 116,
+      "Phosphatase": 16,
+      "Transporter / Solute Carrier": 38,
+      "Epigenetic Regulator": 34,
+      "Other Enzyme / Protein": 208
+    },
+    "Cardiovascular System": {
+      "Protein Kinase": 18,
+      "G-Protein Coupled Receptor (GPCR)": 5,
+      "Ion Channel": 3,
+      "Nuclear Receptor": 6,
+      "Protease / Hydrolase": 13,
+      "Phosphatase": 2,
+      "Transporter / Solute Carrier": 0,
+      "Epigenetic Regulator": 1,
+      "Other Enzyme / Protein": 34
+    },
+    "Respiratory System": {
+      "Protein Kinase": 0,
+      "G-Protein Coupled Receptor (GPCR)": 0,
+      "Ion Channel": 0,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 5,
+      "Phosphatase": 0,
+      "Transporter / Solute Carrier": 0,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 3
+    },
+    "Digestive & Hepatobiliary System": {
+      "Protein Kinase": 28,
+      "G-Protein Coupled Receptor (GPCR)": 3,
+      "Ion Channel": 6,
+      "Nuclear Receptor": 3,
+      "Protease / Hydrolase": 44,
+      "Phosphatase": 1,
+      "Transporter / Solute Carrier": 14,
+      "Epigenetic Regulator": 9,
+      "Other Enzyme / Protein": 86
+    },
+    "Endocrine & Metabolic Organs": {
+      "Protein Kinase": 13,
+      "G-Protein Coupled Receptor (GPCR)": 5,
+      "Ion Channel": 0,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 9,
+      "Phosphatase": 2,
+      "Transporter / Solute Carrier": 2,
+      "Epigenetic Regulator": 6,
+      "Other Enzyme / Protein": 20
+    },
+    "Immune & Hematopoietic System": {
+      "Protein Kinase": 46,
+      "G-Protein Coupled Receptor (GPCR)": 28,
+      "Ion Channel": 7,
+      "Nuclear Receptor": 6,
+      "Protease / Hydrolase": 53,
+      "Phosphatase": 10,
+      "Transporter / Solute Carrier": 4,
+      "Epigenetic Regulator": 4,
+      "Other Enzyme / Protein": 107
+    },
+    "Musculoskeletal System": {
+      "Protein Kinase": 7,
+      "G-Protein Coupled Receptor (GPCR)": 2,
+      "Ion Channel": 2,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 0,
+      "Phosphatase": 1,
+      "Transporter / Solute Carrier": 1,
+      "Epigenetic Regulator": 0,
+      "Other Enzyme / Protein": 9
+    },
+    "Renal & Urogenital System": {
+      "Protein Kinase": 7,
+      "G-Protein Coupled Receptor (GPCR)": 3,
+      "Ion Channel": 0,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 7,
+      "Phosphatase": 0,
+      "Transporter / Solute Carrier": 3,
+      "Epigenetic Regulator": 3,
+      "Other Enzyme / Protein": 12
+    },
+    "Integumentary System": {
+      "Protein Kinase": 1,
+      "G-Protein Coupled Receptor (GPCR)": 0,
+      "Ion Channel": 0,
+      "Nuclear Receptor": 0,
+      "Protease / Hydrolase": 3,
+      "Phosphatase": 2,
+      "Transporter / Solute Carrier": 0,
+      "Epigenetic Regulator": 1,
+      "Other Enzyme / Protein": 6
+    },
+    "Ubiquitous / Systemic": {
+      "Protein Kinase": 231,
+      "G-Protein Coupled Receptor (GPCR)": 65,
+      "Ion Channel": 29,
+      "Nuclear Receptor": 18,
+      "Protease / Hydrolase": 246,
+      "Phosphatase": 54,
+      "Transporter / Solute Carrier": 16,
+      "Epigenetic Regulator": 119,
+      "Other Enzyme / Protein": 475
+    }
+  }
+}
